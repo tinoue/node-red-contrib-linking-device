@@ -1,17 +1,27 @@
 const Linking = require('node-linking');
 const linking = new Linking();
 
+const DEBUG = true;
+functon debugLog(message) {
+    console.error(message);
+}
+
 function initLinking() {
     var initialized = false;
 
-    return new Promise(function(resolve, reject) {
+    debugLog('initLinking');
+
+    return new Promise((resolve, reject) => {
         if (initialized) {
+            debugLog('initLinking already ok');
             resolve();
         } else {
             linking.init().then(function() {
+                debugLog('initLinking ok');
                 initialized = true;
                 resolve();
             }).catch(function(error) {
+                debugLog('initLinking error');
                 reject(error);
             });
         }
@@ -19,9 +29,13 @@ function initLinking() {
 }
 
 module.exports = function(RED) {
+
+
     function LinkingScannerNode(config) {
         RED.nodes.createNode(this, config);
         var node = this;
+
+    try {
 
         node.on('input', function(msg) {
             if (msg.payload) {
@@ -66,6 +80,9 @@ module.exports = function(RED) {
                 node.error(error);
             });
         });
+    } catch(e) {
+	node.error(e);
+    }
     }
 
     RED.nodes.registerType('linking-scanner',LinkingScannerNode);

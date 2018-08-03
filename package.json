@@ -12,6 +12,7 @@
       "linking-device": "linking.js"
     }
   },
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tinoue/node-red-contrib-linking-device.git"
@@ -22,7 +23,6 @@
     "IoT"
   ],
   "author": "Takeshi Inoue <inoue.takeshi@gmail.com>",
-  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/tinoue/node-red-contrib-linking-device/issues"
   },
