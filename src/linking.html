@@ -3,11 +3,16 @@
 <script type="text/x-red" data-template-name="linking-scanner">
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-	<input type="text" id="node-input-name" placeholder="Name">
+	    <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-duration"><i class="icon-tag"></i> Name</label>
-	<input type="text" id="node-input-duration" placeholder="Duration in seconds (>= 5sec or 0 for forever)">
+        <label>&nbsp;</label>
+	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-autostart" style="width: 70%;"> Start scanning at startup</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-duration"><i class="icon-tag"></i> Duration</label>
+	    <input type="text" id="node-input-duration" placeholder="Duration in seconds (&gt;= 5sec or 0 for forever)">
     </div>
 </script>
 
@@ -23,10 +28,13 @@
             name: {
                 value:""
             },
+            autostart: {
+                value: false
+            },
             duration: {
-                value: 0,
+                value: "",
                 validate: function(v) {
-                    return v >= 5 || v === 0;
+                    return v >= 5 || v == 0;
                 }
             }
         },

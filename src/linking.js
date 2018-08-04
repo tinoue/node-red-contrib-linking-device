@@ -8,7 +8,6 @@ function initLinking() {
         if (initialized) {
             resolve();
         } else {
-            console.dir(linking);
             linking.init().then(function() {
                 initialized = true;
                 resolve();
@@ -76,11 +75,16 @@ module.exports = function(RED) {
                 }
             });
 
-            node.on('close', function(_msg) {
+            node.on('close', function(done) {
                 node.log('linking-scanner: Closing.');
 
                 stopScan(node, config);
+                done();
             });
+
+            if (config.autostart) {
+                startScan(node, config, null);
+            }
         } catch(e) {
             node.error('linking-device: ' + e);
         }
