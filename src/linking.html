@@ -17,7 +17,42 @@
 </script>
 
 <script type="text/x-red" data-help-name="linking-scanner">
-    <p>A node to scan Linking beacon signal.</p>
+    <p>A node which wraps <a href="https://github.com/futomi/node-linking">node-linking</a> to scan beacon signal from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. The beacon signal would also have sensor information. NOTE: Only one node can be deployed.</p>
+    <h3>
+      <a class="node-info-header" href="#"><i class="fa fa-angle-right"></i>Input</a>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stop scanning.</dd> 
+        </dd>
+        <dt>autostart <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.autostart</code> is true, this node starts to scan automatically at startup.
+        </dd>
+        <dt>duration <span class="property-type">number</span></dt>
+        <dd>
+          <code>msg.duration</code> specifies Number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node keeps scanning forever.
+        </dd>
+      </dl>
+    </h3>
+    <h3>
+      <a class="node-info-header" href="#"><i class="fa fa-angle-right"></i>Output</a>
+      <dl class="message-properties">
+        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
+        <pre>{
+  advertisement: object,
+  localName: "Tukeru_th016xxxx",
+  address: "f6:36:e4:99:xx:xx",
+  distance: 1.1220184543019633,
+  payload: {
+    name: "Temperature (C)",
+    temperature: 33.5,
+    serviceId: 1
+  }
+}</pre>
+        <p>The message is a subset of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>. But <code>msg.advertisement</code> also has the original LinkingAdvertisement Object.
+      </dl>
+    </h3>
 </script>
 
 <script type="text/javascript">
@@ -39,37 +74,37 @@
             }
         },
         inputs:1,
-        outputs:1,
+        outputs:2,
         icon: "bluetooth.png",
         label: function() {
             return this.name||"linking-scanner";
-        }
+        },
+        outputLabels: ["advertisement", "end of scan notification"]
     });
 </script>
 
 <!-- Linking LED -->
 
-<!---
 <script type="text/x-red" data-template-name="linking-led">
     <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
         <label for="node-input-device"><i class="icon-tag"></i> Device</label>
-	<select id="node-input-device">
-	</select>
+        <select id="node-input-device">
+        </select>
         <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
         <label for="node-input-color"><i class="icon-tag"></i> Color</label>
-	<select id="node-input-color">
-	</select>
+	    <select id="node-input-color">
+	    </select>
     </div>
     <div class="form-row">
         <label for="node-input-pattern"><i class="icon-tag"></i> Pattern</label>
-	<select id="node-input-pattern">
-	</select>
+	    <select id="node-input-pattern">
+	    </select>
     </div>
 </script>
 
@@ -79,10 +114,10 @@
 
 <script type="text/javascript">
     RED.nodes.registerType('linking-led',{
-        category: 'linking-device',
+        category: 'Linking device',
         color: '#C0DEED',
         defaults: {
-            name: {value:""}
+            name: {value:""},
             device: {value:""},
             color: {value:""},
             pattern: {value:""}    
@@ -93,14 +128,88 @@
         label: function() {
             return this.name||"linking-led";
         },
+        oneditprepare: function() {
+            var node = this;
+
+            var getDevices = function(callback) {
+                $.getJSON('linking-device/getDevices/', function(data) {
+                    $('#node-input-device').find('option').remove().end();
+                    for (var d in data) {
+                        $('<option/>', {
+                            value: data[d],
+                            text: data[d]
+                        }).appendTo('#node-input-device');
+                    }
+
+                    if (node.device) {
+                        $('#node-input-device').val(node.device);
+                    }
+
+                    callback && callback();
+                }).fail(function(jqXHR, textStatus, _errorThrown) {
+                    console.warn('Problem discovering devices: ' + textStatus);
+                    callback && callback();
+                });
+            };
+
+            var getLedService = function(callback) {
+                $('#node-input-color').addClass('disabled');
+                $('#node-input-pattern').addClass('disabled');
+
+                var device = $('#node-input-device option:selected').text();
+
+                if (device) {
+                    $.getJSON('linking-device/getServices/' + device, function(services) {
+                        console.dir(services);
+                        if (services && services.led) {
+                            if (services.led.color) {
+                                $('#node-input-color').removeClass('disabled');
+                            }
+                            if (services.led.pattern) {
+                                $('#node-input-pattern').removeClass('disabled');
+                            }
+                        }
+                    }).fail(function(jqXHR, textStatus, errorThrown) {
+                        console.warn('Problem getting services: ' + textStatus);
+                    });
+                }
+            };
+
+            var refreshDevice = function(callback) {
+                $('#node-input-device-refresh').addClass('disabled');
+
+                getDevices(function() {
+                    $('#node-input-device-refresh').removeClass('disabled');
+                    callback && callback();
+                });
+            };
+
+            $('#node-input-device-refresh').click(function() {
+                console.log('click(): refresh');
+                refreshDevice();
+            });
+
+            $('#node-input-device').change(function() {
+                var device = $('#node-input-device option:selected').text();
+
+                console.log('change(): ' + device);
+
+                if (device) {
+                    getLedService(function() {
+                    });
+                } else {
+                    $('#node-input-color').addClass('disabled');
+                    $('#node-input-pattern').addClass('disabled');
+                }
+            });
+
+            refreshDevice(function() {
+                getLedService()
+            });
+        },
         oneditsave: function() {
         },
-        oneditprepare: function() {
-            $('node-input-device').click(function() {
-                $('node-input-device').addClass('disabled');
-                $('node-input-device').removeClass('disabled');
-            });
+        oneditcancel: function() {
         }
     });
 </script>
--->
