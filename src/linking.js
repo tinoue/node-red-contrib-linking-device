@@ -19,19 +19,60 @@ function initLinking() {
 }
 
 module.exports = function(RED) {
+    var restartScan = false;
+    var stopScanListener;
+    var nodeNum = 0;
+
     function startScan(node, config, msg) {
+        // Start scanning beacon
+
         node.log('linking-device: Start sanning.');
         if (msg == null) {
             msg = {};
         }
 
-        // Start scanning beacon
+        node.status({fill:'yellow', shape:'dot',text:'starting scan'});
+
         initLinking().then(function() {
             linking.onadvertisement = function(advertisement) {
                 node.debug('linking-device: Got advertisement.');
-                msg.payload = advertisement;
-                node.send(msg);
+
+                // original advertisement data
+                msg.advertisement = advertisement;
+
+                // set simplified payload
+                msg.payload = {
+                    localName: advertisement.localName,
+                    address: advertisement.address,
+                    distance: advertisement.distance
+                }
+
+                if (advertisement.beaconDataList && (advertisement.beaconDataList.length)) {
+                    for (let data of advertisement.beaconDataList) {
+                        msg.payload.beaconData = data;
+                        node.send(msg);
+                    }
+                } else {
+                    node.send(msg);
+                }
             };
+
+            // If interrupted by device discovery, wait until the discovery finished then restart.
+            stopScanListener = function() {
+                if (restartScan) {
+                    node.log('linking-device: restart scanner.');
+                    startScan(node, config, msg);
+                    restartScan = false;
+                } else {
+                    node.log('linking-device: scanner interrupted.');
+                    restartScan = true;
+                }
+            }
+            linking.noble.once('scanStop', stopScanListener);
+
+            linking.noble.once('scanStart', function() {
+                node.status({fill:'green', shape:'dot',text:'scanning'});
+            });
 
             linking.startScan();
             if (0 < config.duration) {
@@ -48,10 +89,14 @@ module.exports = function(RED) {
     }
 
     function stopScan(node, _config) {
+        // Stop scanning beacon
         node.log('linking-device: Stop scanning.');
 
-        // Stop scanning beacon
         linking.onadvertisement = null;
+        if (stopScanListener) {
+            linking.noble.removeListener('scanStop', stopScanListener);
+            stopScanListener = null;
+        }
 
         initLinking().then(function() {
             linking.stopScan();
@@ -67,6 +112,14 @@ module.exports = function(RED) {
         var node = this;
 
         try {
+            if (nodeNum > 0) {
+                node.error('linking-device: can\'t deploy multiple scanner nodes');
+                node.status({fill:'red', shape:'ring',text:'can\'t deploy multiple scanner nodes'});
+                return;
+            }
+
+            nodeNum++;
+
             node.on('input', function(msg) {
                 if (msg.payload) {
                     startScan(node, config, msg);
@@ -78,6 +131,7 @@ module.exports = function(RED) {
             node.on('close', function(done) {
                 node.log('linking-scanner: Closing.');
 
+                nodeNum--;
                 stopScan(node, config);
                 done();
             });
