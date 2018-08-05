@@ -1,0 +1,106 @@
+<!-- Linking Beacon -->
+
+<script type="text/x-red" data-template-name="linking-scanner">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+	    <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-autostart" style="width: 70%;"> Start scanning at startup</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-duration"><i class="icon-tag"></i> Duration</label>
+	    <input type="text" id="node-input-duration" placeholder="Duration in seconds (&gt;= 5sec or 0 for forever)">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="linking-scanner">
+    <p>A node to scan Linking beacon signal.</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('linking-scanner',{
+        category: 'Linking device',
+        color: '#C0DEED',
+        defaults: {
+            name: {
+                value:""
+            },
+            autostart: {
+                value: false
+            },
+            duration: {
+                value: "",
+                validate: function(v) {
+                    return v >= 5 || v == 0;
+                }
+            }
+        },
+        inputs:1,
+        outputs:1,
+        icon: "bluetooth.png",
+        label: function() {
+            return this.name||"linking-scanner";
+        }
+    });
+</script>
+
+<!-- Linking LED -->
+
+<!---
+<script type="text/x-red" data-template-name="linking-led">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-device"><i class="icon-tag"></i> Device</label>
+	<select id="node-input-device">
+	</select>
+        <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+    </div>
+    <div class="form-row">
+        <label for="node-input-color"><i class="icon-tag"></i> Color</label>
+	<select id="node-input-color">
+	</select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-pattern"><i class="icon-tag"></i> Pattern</label>
+	<select id="node-input-pattern">
+	</select>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="linking-led">
+    <p>A node to control Linking LED device.</p>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('linking-led',{
+        category: 'linking-device',
+        color: '#C0DEED',
+        defaults: {
+            name: {value:""}
+            device: {value:""},
+            color: {value:""},
+            pattern: {value:""}    
+        },
+        inputs:1,
+        outputs:0,
+        icon: "bluetooth.png",
+        label: function() {
+            return this.name||"linking-led";
+        },
+        oneditsave: function() {
+        },
+        oneditprepare: function() {
+            $('node-input-device').click(function() {
+                $('node-input-device').addClass('disabled');
+                $('node-input-device').removeClass('disabled');
+            });
+        }
+    });
+</script>
+-->
