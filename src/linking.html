@@ -119,6 +119,7 @@
         defaults: {
             name: {value:""},
             device: {value:""},
+            address: {value:""},
             color: {value:""},
             pattern: {value:""}    
         },
@@ -136,13 +137,13 @@
                     $('#node-input-device').find('option').remove().end();
                     for (var d in data) {
                         $('<option/>', {
-                            value: data[d],
-                            text: data[d]
+                            value: data[d].address,
+                            text: data[d].name
                         }).appendTo('#node-input-device');
                     }
 
-                    if (node.device) {
-                        $('#node-input-device').val(node.device);
+                    if (node.address) {
+                        $('#node-input-device').val(node.address);
                     }
 
                     callback && callback();
@@ -157,14 +158,54 @@
                 $('#node-input-pattern').addClass('disabled');
 
                 var device = $('#node-input-device option:selected').text();
+                var address = $('#node-input-device option:selected').val();
 
                 if (device) {
-                    $.getJSON('linking-device/getServices/' + device, function(services) {
+                    $.getJSON('linking-device/getServices/' + address, function(services) {
                         console.dir(services);
                         if (services && services.led) {
-                            if (services.led.color) {
+                            $('#node-input-color').find('option').remove().end();
+                            $('#node-input-pattern').find('option').remove().end();
+
+                            if (services.led.colors) {
                                 $('#node-input-color').removeClass('disabled');
+
+                                for (var color in services.led.colors) {
+                                    $('<option/>', {
+                                        text: color,
+                                        value: services.led.colors[led]
+                                    }).appendTo('#node-input-color');
+                                }
+
+                                if (node.color) {
+                                    $('#node-input-color').val(node.color);
+                                }
                             }
+
+                            if (services.led.pattern) {
+                                $('#node-input-pattern').removeClass('disabled');
+                            }
+                        }
+
+                        if (services && services.led) {
+                            $('#node-input-pattern').find('option').remove().end();
+                            $('#node-input-pattern').find('option').remove().end();
+
+                            if (services.led.patterns) {
+                                $('#node-input-pattern').removeClass('disabled');
+
+                                for (var pattern in services.led.patterns) {
+                                    $('<option/>', {
+                                        text: pattern,
+                                        value: services.led.patterns[led]
+                                    }).appendTo('#node-input-pattern');
+                                }
+
+                                if (node.pattern) {
+                                    $('#node-input-pattern').val(node.pattern);
+                                }
+                            }
+
                             if (services.led.pattern) {
                                 $('#node-input-pattern').removeClass('disabled');
                             }
@@ -191,10 +232,14 @@
 
             $('#node-input-device').change(function() {
                 var device = $('#node-input-device option:selected').text();
+                var address = $('#node-input-device option:selected').val();
 
                 console.log('change(): ' + device);
 
                 if (device) {
+                    node.device = device;
+                    node.address = address;
+
                     getLedService(function() {
                     });
                 } else {
