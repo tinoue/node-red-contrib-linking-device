@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix"
+    "lint": "eslint src && eslint -c .eslintrc.html.json --ext .html src",
+    "lint:fix": "eslint src --fix && eslint -c .eslintrc.html.json --ext .html src"
   },
   "node-red": {
     "nodes": {
@@ -21,7 +21,10 @@
   "keywords": [
     "node-red",
     "Linking",
-    "IoT"
+    "IoT",
+    "node-linkig",
+    "Bluetooth",
+    "BLE"
   ],
   "author": "Takeshi Inoue <inoue.takeshi@gmail.com>",
   "bugs": {
@@ -33,7 +36,6 @@
   },
   "devDependencies": {
     "eslint": "^5.2.0",
-    "eslint-config-google": "^0.9.1",
     "eslint-plugin-html": "^4.0.5"
   }
 }

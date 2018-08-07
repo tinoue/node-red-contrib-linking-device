@@ -1,11 +1,11 @@
 {
     "env": {
-        "es6": true,
-        "node": true
+        "browser": true,
+        "jquery": true
     },
     "extends": "eslint:recommended",
     "parserOptions": {
-        "ecmaVersion": 2015
+        "sourceType": "module"
     },
     "rules": {
         "indent": [
@@ -17,8 +17,7 @@
             "unix"
         ],
         "quotes": [
-            "error",
-            "single"
+            "off"
         ],
         "semi": [
             "error",
@@ -29,5 +28,11 @@
 	        "args": "after-used",
 	        "argsIgnorePattern": "^_"
 	    }]
-    }
+    },
+    "globals": [
+        "RED": false
+    ],
+    "plugins": [
+        "html"
+    ]
 }
