@@ -1,7 +1,5 @@
 const EventEmitter = require('events').EventEmitter;
 
-const event = new EventEmitter();	// manage internal events - discover, restart
-
 const Linking = require('node-linking');
 const linking = new Linking();
 
@@ -25,55 +23,214 @@ function initLinking() {
 }
 
 module.exports = function(RED) {
+    const event = new EventEmitter();   // manage internal events - discover, scanStatus,
+
     var scanning = false;
-    var restartRequired = false;
 
-    var linkingDevices = {};	// key: address, value: device object
-    var deviceServices = {};	// key: address, value: services
+    var scanRequestNum = 0;
+    var connectRequestNum = 0;
 
-    var nodeNum = 0;	// # of scanner nodes
+    var linkingDevices = {};    // key: localName, value: device object
+    var deviceServices = {};    // key: localName, value: services
 
+    ////////////////////////////////////////////////////////////////
+    // Common function for scanning (discovery)
+    ////////////////////////////////////////////////////////////////
+
+    initLinking().then(function() {
+        linking.noble.on('scanStart', onNobleScanStart);
+        linking.noble.on('scanStop', onNobleScanStop);
+        linking.noble.on('discover', onNobleDiscover);
+    }).catch(function(error) {
+        console.error(TAG + 'initLinking failed: ' + error);
+    });
+
+    function onNobleDiscover(peripheral) {
+        const logger = console;
+
+        const ad = peripheral.advertisement;
+        if (!ad.localName) {
+            logger.warn(TAG + 'Invalid advertisement. No localName.');
+            return;
+        }
+
+        logger.debug(TAG + 'Got advertisement: ' + ad.localName);
+
+        const advertisement = linking.LinkingAdvertising.parse(peripheral);
+        if (advertisement) {
+            const device = new linking.LinkingDevice(linking.noble, peripheral);
+            if (device) {
+                if (! linkingDevices[advertisement.localName]) {
+                    logger.log(TAG + 'found device: ' + localName);
+                    linkingDevices[advertisement.localName] = device;
+                }
+
+                const deviceNum =  + Object.keys(linkingDevices).length;
+                event.emit('scanStatus', {fill:'green',shape:'dot',text:'scanning. found ' + deviceNum});
+                event.emit('discover', advertisement, device);
+            } else {
+                logger.warn(TAG + 'Advertisement has no device object');
+                return;
+            }
+        } else {
+            logger.warn(TAG + 'Invalid advertisement object');
+            return;
+        }
+    } // onNobleDiscover()
+
+    function onNobleScanStart() {
+        scanning = true;
+
+        event.emit('scanStatus', {fill:'green', shape:'dot',text:'scanning. found ' + Object.keys(linkingDevices).length});
+        event.emit('scanStart');
+    }
+    
+    function onNobleScanStop() {
+        const logger = console;
+
+        scanning = false;
+
+        if (0 < connectRequestNum) {
+            logger.log(TAG + 'scanner suspendingfor connect operation.');
+            event.emit('scanStatus', {fill:'grey', shape:'dot',text:'suspending'});
+            // event.emit('scanStop', true);
+        } else if (0 < scanRequestNum) {
+            logger.log(TAG + 'scanner interrupted unexpectedly.');
+            event.emit('scanStatus', {fill:'yellow', shape:'dot',text:'interrupted'});
+            event.emit('scanStop', false);
+        } else {
+            logger.log(TAG + 'scanner stopped.');
+            event.emit('scanStatus', {fill:'grey', shape:'dot',text:'idle'});
+            event.emit('scanStop', true);
+        }
+    }
+
+    // This function calls noble.startScanning() directly instead of linking.startScan()
+    // and heavyly relied on internal implementation of node-linking.
+    // Params:
+    //   resume: if true, resume to start scanning if necessary
+    // Returns: Promise
+    // event : discover, scanStart
+    function startNobleScan(resume) {
+        const logger = console;
+
+        return new Promise(function(resolve, reject) {
+            if (resume) {
+                if (scanRequestNum <= 0) {
+                    logger.log(TAG + 'no need to resume scanning.');
+                    resolve();
+                }
+            } else {
+                scanRequestNum++;
+            }
+
+            // Start scanning beacon
+            logger.log(TAG + 'Start scanning.');
+
+            if (scanning) {
+                logger.log(TAG + 'scanner already started.');
+                resolve();
+            }
+
+            scanning = true;
+            event.emit('scanStatus', {fill:'yellow', shape:'dot',text:'starting scan'});
+
+            initLinking().then(function() {
+                linking.noble.startScanning(linking.PRIMARY_SERVICE_UUID_LIST, true, function(error) {
+                    if (error) {
+                        logger.error(TAG + error);
+                        scanRequestNum--;
+                        reject();
+                    } else {
+/*
+                        const duration = (msg && (msg.duration === 0 || msg.duration)) ? msg.duration : config.duration;
+                        if (0 < duration) {
+                            setTimeout(function() {
+                                stopNobleScan();
+                            }, duration * 1000);
+                        }
+*/
+                        resolve();
+                    }
+                });
+            }).catch(function(error) {
+                scanning = false;
+
+                logger.error(TAG + error);
+                scanRequestNum--;
+                event.emit('scanStatus', {fill:'red', shape:'ring',text:'error'});
+                reject();
+            });
+        });
+    }
+
+    // NOTE: This function also calls noble.stopScanning() directly instead of linking.stopScan()
+    // Params:
+    //   suspend: if true, force calling noble.stopScanning regardless of scanRequestNum
+    // Returns: Promise
+    // event: scanStop
+    function stopNobleScan(suspend) {
+        const logger = console;
+        logger.log(TAG + 'Stop scanning.');
+
+        return new Promise(function(resolve, reject) {
+            if (! suspend) {
+                scanRequestNum--;
+                if (0 < scanRequestNum) {
+                    logger.log(TAG + 'skip to stop scanning. other module want to keep scanning.');
+                    resolve();
+                }
+            }
+
+            if (! scanning) {
+                logger.log(TAG + 'scanner already stopped.');
+                resolve();
+            }
+
+            scanning = false;
+            event.emit('scanStatus', {fill:'yellow', shape:'dot',text:'stopping scan'});
+            
+            initLinking().then(function() {
+                linking.noble.stopScanning(function(error) {
+                    if (error) {
+                        logger.error(TAG + error);
+                        event.emit('scanStatus', {fill:'red', shape:'ring',text:'error on stop'});
+                        reject();
+                    } else {
+                        resolve();
+                    }
+                });
+            }).catch(function(error) {
+                logger.error(TAG + error);
+                event.emit('scanStatus', {fill:'red', shape:'ring',text:'error on stop'});
+                reject();
+            });
+        });
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // linking-scanner node
+    ////////////////////////////////////////////////////////////////
     function LinkingScannerNode(config) {
         RED.nodes.createNode(this, config);
         var node = this;
 
-        function onDiscover(peripheral) {
-            node.debug(TAG + 'Got advertisement.');
+        function onScanStatus(status) {
+            node.status(status);
+        }
 
-            const ad = peripheral.advertisement;
-            if (!ad.localName) {
-                node.warn(TAG + 'Invalid advertisement. No localName.');
-                return;
-            }
-
-            const advertisement = linking.LinkingAdvertising.parse(peripheral);
-            if (advertisement) {
-                const device = new linking.LinkingDevice(linking.noble, peripheral);
-                if (device) {
-                    if (! linkingDevices[advertisement.address]) {
-                        linkingDevices[advertisement.address] = device;
-                        const deviceNum =  + Object.keys(linkingDevices).length;
-                        node.status({fill:'green',shape:'dot',text:'scanning. found ' + deviceNum});
-                    }
-                } else {
-                    node.warn(TAG + 'Advertisement has no device object');
-                    return;
-                }
-            } else {
-                node.warn(TAG + 'Invalid advertisement object');
-                return;
-            }
-
-
+        function onDiscover(advertisement, _device) {
+            let msg = {};
+    
             // original advertisement data
             msg.advertisement = advertisement;
-
+    
             // set simplified payload
             msg.localName = advertisement.localName;
             msg.address = advertisement.address;
             msg.distance = advertisement.distance;
             msg.rssi = advertisement.rssi;
-
+    
             if (advertisement.beaconDataList && (advertisement.beaconDataList.length)) {
                 for (let data of advertisement.beaconDataList) {
                     msg.payload = data;
@@ -83,138 +240,168 @@ module.exports = function(RED) {
                 msg.payload = {};
                 node.send([msg, null]);
             }
-        } // onDiscover()
-
-        function onScanStop() {
-            scanning = false;
-
-            if (restartRequired) {
-                node.log(TAG + 'scanner stopped and waiting for restart.');
-                node.status({fill:'grey', shape:'dot',text:'suspending'});
-                // do not send message in this case.
-            } else if (scanning) {
-                node.log(TAG + 'scanner interrupted unexpectedly.');
-                node.status({fill:'yellow', shape:'dot',text:'interrupted'});
-                node.send([null, { payload: false}]);
-            } else {
-                node.log(TAG + 'scanner stopped.');
-                node.status({fill:'grey', shape:'dot',text:'idle'});
-                node.send([null, { payload: true}]);
-            }
-
-            linking.noble.removeListener('scanStop', onScanStop);
         }
 
-        function stopScan() {
-            // Stop scanning beacon. Caller should set 'restartRequired' appropreately.
-            // NOTE: This function also calls noble.stopScanning() directly instead of linking.stopScan()
-            node.log(TAG + (restartRequired ? 'Suspend' : 'Stop') + ' scanning.');
-            scanning = false;
-            
-            linking.noble.removeListener('discover', onDiscover);
-
-            initLinking().then(function() {
-                linking.noble.stopScanning();
-            }).catch(function(error) {
-                node.error(TAG + error);
-                node.status({fill:'red', shape:'ring',text:'error'});
-                node.send([null, {payload: false}]);
-            });
-
-        }
-
-        function startScan(msg) {
-            // This function calls noble.startScanning() directly instead of linking.startScan()
-            // and heavyly relied on internal implementation of node-linking.
-
-            // Start scanning beacon
-            node.log(TAG + 'Start scanning.');
-
-            if (scanning) {
-                node.log(TAG + 'scanner already started.');
-                return;
-            }
-
-            if (msg == null) {
-                msg = {};
-            }
-
-            node.status({fill:'yellow', shape:'dot',text:'starting scan'});
-
-            initLinking().then(function() {
-                linking.noble.on('discover', onDiscover);
-
-                // If interrupted by device discovery, wait until the discovery finished then restart.
-                linking.noble.once('scanStop', onScanStop);
-
-                linking.noble.once('scanStart', function() {
-                    scanning = true;
-                    restartRequired = false;
-
-                    node.status({fill:'green', shape:'dot',text:'scanning. found ' + Object.keys(linkingDevices).length});
+        function startScan() {
+            startNobleScan().then(function() {
+                event.on('discover', onDiscover);
+                event.once('scanStop', function(normal) {
+                    node.send([null, normal]);
                 });
-
-                restartRequired = false; // in case of unexpected failure
-                linking.noble.startScanning(linking.PRIMARY_SERVICE_UUID_LIST, true);
-
-                const duration = (msg && (msg.duration === 0 || msg.duration)) ? msg.duration : config.duration;
-                if (0 < duration) {
-                    setTimeout(function() {
-                        restartRequired = false;
-                        stopScan();
-                    }, duration * 1000);
-                }
-
-                node.status({fill:'green', shape:'dot',text:'scanning. found ' + Object.keys(linkingDevices).length});
-            }).catch(function(error) {
-                node.error(TAG + error);
-                node.status({fill:'red', shape:'ring',text:'error'});
+            }).catch(function(_error) {
+                // failed to start scan
+                node.send([null, false]);
             });
         }
 
-        if (nodeNum > 0) {
-            node.error(TAG + 'can\'t deploy multiple scanner nodes');
-            node.status({fill:'red', shape:'ring',text:'can\'t deploy multiple scanner nodes'});
-            return;
-        }
-
-        nodeNum++;
+        event.on('scanStatus', onScanStatus);
 
         node.on('input', function(msg) {
             if (msg.payload) {
-                startScan(msg);
+                startScan();
             } else {
-                stopScan();
+                event.removeListener('discover', onDiscover);
+
+                stopNobleScan().then(function() {
+                    // this will be sent by scanStop handler above.
+                    // node.send([null, true]);
+                }).catch(function(_error) {
+                    // scan stopped by error
+                    node.send([null, false]);
+                });
             }
         });
 
         node.on('close', function(done) {
             node.log(TAG + 'Closing.');
 
-            nodeNum--;
-            if (! scanning) {
-                stopScan(node, config);
-            }
-            done();
+            event.removeListener('discover', onDiscover);
+            event.removeListener('scanStatus', onScanStatus);
+
+            stopNobleScan(node, config).then(done).catch(done);
         });
 
-        // Restart request from /linking-device/restartScan
-        event.on('restart', function() {
-            if (restartRequired) {
-                node.log(TAG + 'restarting scan.');
-                startScan(null);
-            }
-
-            restartRequired = false;
-        });
+        node.status({fill:'grey', shape:'dot',text:'idle'});
 
         if (config.autostart) {
-            startScan(null);
+            startScan();
         }
     }
 
     RED.nodes.registerType('linking-scanner', LinkingScannerNode);
 
+    ////////////////////////////////////////////////////////////////
+    // Common functions for connect/disconnect
+    ////////////////////////////////////////////////////////////////
+
+    // Returns: Promise<LinkingDevie>
+    function getDevice(localName) {
+        const logger = console;
+
+        return new Promise(function(resolve, reject) {
+            // check cache first
+            if (linkingDevices[localName]) {
+                resolve(linkingDevices[localName]);
+            }
+
+            function onDiscover(advertisement, device) {
+                if (advertisement.localName === localName) {
+                    event.removeListener('discover', onDiscover);
+
+                    stopNobleScan().then(function() {
+                        resolve(device);
+                    }).catch(function() {
+                        resolve(device);
+                    });
+                }
+            }
+
+            event.on('discover', onDiscover);
+
+            logger.log(TAG + 'canning to discover: ' + localName);
+
+            startNobleScan().then(function() {
+                // scan device for 10 secnds
+
+                setTimeout(function() {
+                    logger.log(TAG + 'timed out to get device: ' + localName);
+                    event.removeListener('discover', onDiscover);
+                    stopNobleScan().then(reject).catch(reject);
+                }, 10 * 1000);
+            }).catch(function(error) {
+                event.removeListener('discover', onDiscover);
+                reject(error);
+            });;
+        });
+    }
+
+    // Returns Promise
+    function connectDevice(localName) {
+        const logger = console;
+
+        return new Promise(function(resolve, reject) {
+            getDevice(localName).then(function(device) {
+                if (device.connected) {
+                    logger.warn(TAG + 'device already connected: ' + localName);
+                    resolve();
+                }
+
+                logger.log(TAG + 'Stopping scan to connect.');
+
+                stopNobleScan(true).then(function() {
+                    // TODO: Semaphore
+                    connectRequestNum++;
+
+                    device.connect().then(function() {
+                        resolve();
+                    }).catch(function(error) {
+                        connectRequestNum--;
+                        reject(error);
+                    });
+                    
+                }).catch(function(error) {
+                    reject(error);
+                });
+            }).catch(function(error) {
+                rejet(error);
+            });
+        });
+    }
+
+    // Returns Promise
+    function disconnectDevice(localName) {
+        const logger = console;
+
+        return new Promise(function(resolve, reject) {
+            const device = linkingDevices[localName];
+            if (! device) {
+                logger.warn(TAG + 'can\t disconnect unpaired device: ' + localName);
+                reject(new Error('can\t disconnect unpaired device'));
+            }
+
+            connectRequestNum--;
+            if (connectRequestNum < 0) {
+                logger.error(TAG + 'unexpected connectRequestNum');
+                connectRequestNum = 0;
+            }
+
+            if (! device.connected) {
+                // This can be possible because of signal lost, etc...
+                logger.info(TAG + 'device alread disconnected: ' + localName);
+                resolve();
+            }
+
+            device.disconnect().then(function() {
+                resolve();
+            }).catch(function(error) {
+                 reject(error);
+            });
+        });
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // linking-led node
+    ////////////////////////////////////////////////////////////////
     function LinkingLedNode(config) {
         RED.nodes.createNode(this, config);
         var node = this;
