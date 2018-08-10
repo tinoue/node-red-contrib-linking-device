@@ -1,6 +1,6 @@
 {
   "name": "red-contrib-linking-device",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A Node-RED node to access/control Linking devices by using node-linking.",
   "main": "index.js",
   "scripts": {
@@ -32,7 +32,8 @@
   },
   "homepage": "https://github.com/tinoue/node-red-contrib-linking-device#readme",
   "dependencies": {
-    "node-linking": "^0.1.0"
+    "node-linking": "^0.1.0",
+    "semaphore": "^1.1.0"
   },
   "devDependencies": {
     "eslint": "^5.2.0",

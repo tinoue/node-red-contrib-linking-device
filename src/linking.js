@@ -1,34 +1,22 @@
 const EventEmitter = require('events').EventEmitter;
+const connectSem = require('semaphore')(1);
 
 const Linking = require('node-linking');
+const LinkingAdvertising = require('node-linking/lib/modules/advertising');
+const LinkingDevice = require('node-linking/lib/modules/device');
 const linking = new Linking();
 
 const TAG = 'linking-device: ';
 
-function initLinking() {
-    var initialized = false;
-
-    return new Promise((resolve, reject) => {
-        if (initialized) {
-            resolve();
-        } else {
-            linking.init().then(function() {
-                initialized = true;
-                resolve();
-            }).catch(function(error) {
-                reject(error);
-            });
-        }
-    });
-}
-
 module.exports = function(RED) {
-    const event = new EventEmitter();   // manage internal events - discover, scanStatus,
+    const logger = console;
+    // manages internal events - discover, scanStart, scanStop, scanStatus, connect, disconnect
+    const event = new EventEmitter();
 
     var scanning = false;
 
-    var scanRequestNum = 0;
-    var connectRequestNum = 0;
+    var scanRequestNum = 0;		// # of scan request from linking-scanner
+    var connectingRequestNum = 0;	// # of devices which trying to connect (doesn't include devices connected)
 
     var linkingDevices = {};    // key: localName, value: device object
     var deviceServices = {};    // key: localName, value: services
@@ -37,31 +25,39 @@ module.exports = function(RED) {
     // Common function for scanning (discovery)
     ////////////////////////////////////////////////////////////////
 
-    initLinking().then(function() {
-        linking.noble.on('scanStart', onNobleScanStart);
-        linking.noble.on('scanStop', onNobleScanStop);
-        linking.noble.on('discover', onNobleDiscover);
-    }).catch(function(error) {
-        console.error(TAG + 'initLinking failed: ' + error);
-    });
+    function initLinking() {
+        var initialized = false;
+
+        return new Promise((resolve, reject) => {
+            if (initialized) {
+                resolve();
+            } else {
+                linking.init().then(function() {
+                    initialized = true;
+                    resolve();
+                }).catch(function(error) {
+                    logger.warn(TAG + 'faild to linking.init(): ' + error);
+                    reject(error);
+                });
+            }
+        });
+    }
 
     function onNobleDiscover(peripheral) {
-        const logger = console;
-
         const ad = peripheral.advertisement;
         if (!ad.localName) {
-            logger.warn(TAG + 'Invalid advertisement. No localName.');
+            // logger.warn(TAG + 'Invalid advertisement. No localName.');
             return;
         }
 
         logger.debug(TAG + 'Got advertisement: ' + ad.localName);
 
-        const advertisement = linking.LinkingAdvertising.parse(peripheral);
+        const advertisement = LinkingAdvertising.parse(peripheral);
         if (advertisement) {
-            const device = new linking.LinkingDevice(linking.noble, peripheral);
+            const device = new LinkingDevice(linking.noble, peripheral);
             if (device) {
                 if (! linkingDevices[advertisement.localName]) {
-                    logger.log(TAG + 'found device: ' + localName);
+                    logger.log(TAG + 'found device: ' + advertisement.localName);
                     linkingDevices[advertisement.localName] = device;
                 }
 
@@ -86,11 +82,9 @@ module.exports = function(RED) {
     }
     
     function onNobleScanStop() {
-        const logger = console;
-
         scanning = false;
 
-        if (0 < connectRequestNum) {
+        if (0 < connectingRequestNum) {
             logger.log(TAG + 'scanner suspendingfor connect operation.');
             event.emit('scanStatus', {fill:'grey', shape:'dot',text:'suspending'});
             // event.emit('scanStop', true);
@@ -112,8 +106,6 @@ module.exports = function(RED) {
     // Returns: Promise
     // event : discover, scanStart
     function startNobleScan(resume) {
-        const logger = console;
-
         return new Promise(function(resolve, reject) {
             if (resume) {
                 if (scanRequestNum <= 0) {
@@ -142,7 +134,7 @@ module.exports = function(RED) {
                         scanRequestNum--;
                         reject();
                     } else {
-/*
+                        /*
                         const duration = (msg && (msg.duration === 0 || msg.duration)) ? msg.duration : config.duration;
                         if (0 < duration) {
                             setTimeout(function() {
@@ -170,7 +162,6 @@ module.exports = function(RED) {
     // Returns: Promise
     // event: scanStop
     function stopNobleScan(suspend) {
-        const logger = console;
         logger.log(TAG + 'Stop scanning.');
 
         return new Promise(function(resolve, reject) {
@@ -208,6 +199,14 @@ module.exports = function(RED) {
         });
     }
 
+    initLinking().then(function() {
+        linking.noble.on('scanStart', onNobleScanStart);
+        linking.noble.on('scanStop', onNobleScanStop);
+        linking.noble.on('discover', onNobleDiscover);
+    }).catch(function(error) {
+        console.error(TAG + 'initLinking failed: ' + error);
+    });
+
     ////////////////////////////////////////////////////////////////
     // linking-scanner node
     ////////////////////////////////////////////////////////////////
@@ -243,48 +242,64 @@ module.exports = function(RED) {
         }
 
         function startScan() {
-            startNobleScan().then(function() {
-                event.on('discover', onDiscover);
-                event.once('scanStop', function(normal) {
-                    node.send([null, normal]);
+            try {
+                startNobleScan().then(function() {
+                    event.on('discover', onDiscover);
+                    event.once('scanStop', function(normal) {
+                        node.send([null, normal]);
+                    });
+                }).catch(function(_error) {
+                    // failed to start scan
+                    node.send([null, false]);
                 });
-            }).catch(function(_error) {
-                // failed to start scan
-                node.send([null, false]);
-            });
+            } catch(error) {
+                node.error(error);
+            }
         }
 
         event.on('scanStatus', onScanStatus);
 
         node.on('input', function(msg) {
-            if (msg.payload) {
-                startScan();
-            } else {
-                event.removeListener('discover', onDiscover);
-
-                stopNobleScan().then(function() {
-                    // this will be sent by scanStop handler above.
-                    // node.send([null, true]);
-                }).catch(function(_error) {
-                    // scan stopped by error
-                    node.send([null, false]);
-                });
+            try {
+                if (msg.payload) {
+                    startScan();
+                } else {
+                    event.removeListener('discover', onDiscover);
+                    
+                    stopNobleScan().then(function() {
+                        // this will be sent by scanStop handler above.
+                        // node.send([null, true]);
+                    }).catch(function(_error) {
+                        // scan stopped by error
+                        node.send([null, false]);
+                    });
+                }
+            } catch(error) {
+                node.error(error);
             }
         });
 
         node.on('close', function(done) {
-            node.log(TAG + 'Closing.');
+            try {
+                node.log(TAG + 'Closing.');
 
-            event.removeListener('discover', onDiscover);
-            event.removeListener('scanStatus', onScanStatus);
-
-            stopNobleScan(node, config).then(done).catch(done);
+                event.removeListener('discover', onDiscover);
+                event.removeListener('scanStatus', onScanStatus);
+                
+                stopNobleScan().then(done).catch(done);
+            } catch(error) {
+                node.error(error);
+            }
         });
 
         node.status({fill:'grey', shape:'dot',text:'idle'});
 
         if (config.autostart) {
-            startScan();
+            try {
+                startScan();
+            } catch(error) {
+                node(error);
+            }
         }
     }
 
@@ -294,9 +309,12 @@ module.exports = function(RED) {
     // Common functions for connect/disconnect
     ////////////////////////////////////////////////////////////////
 
+    // Parameters:
+    //    localName
+    //    timeout: Optional. Default is 10 seconds.
     // Returns: Promise<LinkingDevie>
-    function getDevice(localName) {
-        const logger = console;
+    function getDevice(localName, timeout) {
+        timeout = (typeof(timeout) !== 'number') || 30;
 
         return new Promise(function(resolve, reject) {
             // check cache first
@@ -310,7 +328,9 @@ module.exports = function(RED) {
 
                     stopNobleScan().then(function() {
                         resolve(device);
-                    }).catch(function() {
+                    }).catch(function(error) {
+                        logger.wan(TAG + 'failed to stop scannig: ' + error);
+                        // do not return error intentionally. you get device anyway.
                         resolve(device);
                     });
                 }
@@ -318,83 +338,110 @@ module.exports = function(RED) {
 
             event.on('discover', onDiscover);
 
-            logger.log(TAG + 'canning to discover: ' + localName);
+            logger.log(TAG + 'scanning to discover: ' + localName);
 
             startNobleScan().then(function() {
-                // scan device for 10 secnds
+                // scan device for <timeout> secnds
 
                 setTimeout(function() {
-                    logger.log(TAG + 'timed out to get device: ' + localName);
+                    const errormsg = 'timed out to get device: ' + localName;
+                    logger.log(TAG + errormsg);
                     event.removeListener('discover', onDiscover);
-                    stopNobleScan().then(reject).catch(reject);
-                }, 10 * 1000);
+
+                    stopNobleScan().then(function() {
+                        reject(new Error(errormsg));
+                    }).catch(function(error) {
+                        reject(error);
+                    });
+                }, timeout * 1000);
             }).catch(function(error) {
                 event.removeListener('discover', onDiscover);
+                logger.warn(TAG + 'failed to start scanning: ' + error);
                 reject(error);
-            });;
+            });
         });
     }
 
-    // Returns Promise
-    function connectDevice(localName) {
-        const logger = console;
-
+    //    localName
+    //    timeout: Optional. Default is 10 seconds.
+    // Returns Promise<Device>
+    function connectDevice(localName, timeout) {
         return new Promise(function(resolve, reject) {
-            getDevice(localName).then(function(device) {
-                if (device.connected) {
-                    logger.warn(TAG + 'device already connected: ' + localName);
-                    resolve();
-                }
+            logger.log(TAG + 'connecting to device: ' + localName);
 
-                logger.log(TAG + 'Stopping scan to connect.');
+            connectingRequestNum++;
+            
+            if (! connectSem.available()) {
+                logger.debug(TAG + 'waiting semaphore');
+            }
 
-                stopNobleScan(true).then(function() {
-                    // TODO: Semaphore
-                    connectRequestNum++;
-
-                    device.connect().then(function() {
-                        resolve();
-                    }).catch(function(error) {
-                        connectRequestNum--;
-                        reject(error);
-                    });
-                    
-                }).catch(function(error) {
+            connectSem.take(function() {
+                const onError = function(error) {
+                    connectingRequestNum--;
+                    connectSem.leave();
                     reject(error);
-                });
-            }).catch(function(error) {
-                rejet(error);
+                };
+
+                getDevice(localName, timeout).then(function(device) {
+                    const onSuccess = function() {
+                        connectingRequestNum--;
+                        connectSem.leave();
+                        resolve(device);
+                    };
+
+                    if (device.connected) {
+                        logger.debug(TAG + 'device already connected: ' + localName);
+                        onSuccess();
+                    }
+
+                    logger.log(TAG + 'Stopping scan to connect.');
+
+                    stopNobleScan(true).then(function() {
+                        device.connect().then(function() {
+                            device.ondisconnect = function() {
+                                logger.log(TAG + 'device disconnected: ' + localName);
+                                device.disconnect = null;
+                                event.emit('disconnect', localName);
+                            };
+
+                            logger.log(TAG + 'device sconnected: ' + localName);
+                            event.emit('connect', localName);
+
+                            deviceServices[localName] = device.services;
+                            onSuccess();
+                        }).catch(onError); // connect
+                    }).catch(onError); // stopNobleScan
+                }).catch(onError); // getDevice
             });
         });
     }
 
     // Returns Promise
+    // eslint-disable-next-line no-unused-vars
     function disconnectDevice(localName) {
-        const logger = console;
-
         return new Promise(function(resolve, reject) {
+            logger.log(TAG + 'disconnecting device: ' + localName);
+
             const device = linkingDevices[localName];
             if (! device) {
-                logger.warn(TAG + 'can\t disconnect unpaired device: ' + localName);
-                reject(new Error('can\t disconnect unpaired device'));
+                const errormsg = 'can\t disconnect unpaired device: ' + localName;
+
+                logger.warn(TAG + errormsg);
+                reject(new Error(errormsg));
             }
 
-            connectRequestNum--;
-            if (connectRequestNum < 0) {
-                logger.error(TAG + 'unexpected connectRequestNum');
-                connectRequestNum = 0;
-            }
-
+            // This check might not be necessary
             if (! device.connected) {
-                // This can be possible because of signal lost, etc...
                 logger.info(TAG + 'device alread disconnected: ' + localName);
                 resolve();
             }
 
             device.disconnect().then(function() {
+                logger.log(TAG + 'disconnected device: ' + localName);
                 resolve();
             }).catch(function(error) {
-                 reject(error);
+                logger.warn(TAG + 'failed to disconnect device: ' + localName);
+                reject(error);
             });
         });
     }
@@ -408,10 +455,43 @@ module.exports = function(RED) {
 
         try {
             node.on('input', function(msg) {
-                if (msg.payload) {
-                    // turn on led
+                const localName = msg.localName;
+
+                if (localName) {
+                    if (linkingDevices[localName] &&
+                        deviceServices[localName] && (! deviceServices[localName].led)) {
+
+                        logger.warn('No led service: ' + localName);
+                        return;
+                    }
+
+                    node.debug('Turning LED on.');
+
+                    connectDevice(localName).then(function(device) {
+                        if (device.services.led) {
+                            if (msg.payload) {
+                                // turn on led
+                                device.services.led.turnOn(msg.color, msg.pattern,
+                                    msg.duration).then(function(res) {
+                                    if (!res.resultCode === 0) {
+                                        node.warn('led.turnOn() failed. resultCode:'
+                                                  + res.resultCode + '. ' + res.resultText);
+                                    }
+                                }).catch(function(error) {
+                                    node.warn('led.turnOn() failed. ' + error);
+                                });
+                            } else {
+                                // turn off led
+                                device.services.led.turnOff();
+                            }
+                        } else {
+                            node.error('LED service unsupported: ' + localName);
+                        }
+                    }).catch(function(error) {
+                        node.error('failed to connect ' + localName + ' : ' + error);
+                    });
                 } else {
-                    // turn off led
+                    node.error('no device name specified.');
                 }
             });
 
@@ -426,72 +506,113 @@ module.exports = function(RED) {
 
     RED.nodes.registerType('linking-led',LinkingLedNode);
 
+    ////////////////////////////////////////////////////////////////
     // endpoints for preference
+    ////////////////////////////////////////////////////////////////
     
     // Returns array of localName of devices discovered
     RED.httpAdmin.get('/linking-device/getDevices', function(req, res) {
-        console.log('linking-device/getDevice/');
+        try {
+            logger.log('linking-device/getDevice/');
 
-        if (Object.keys(linkingDevices).length > 0) {
-            // data: array of {text:<localName>, value:<address>}
-            const response = Object.keys(linkingDevices).map(function (addr, _index) {
-                return {
-                    name: linkingDevices[addr].advertisement.localName,
-                    address: addr
-                };
-            });
-            res.status(200).send(response);
-        } else {
-            res.status(404).send();
+            if (Object.keys(linkingDevices).length > 0) {
+                // data: array of {text:<localName>, value:<address>}
+                const response = Object.keys(linkingDevices).map(function (localName, _index) {
+                    return localName;
+                });
+                
+                res.status(200).send(response);
+            } else {
+                logger.log(TAG + 'no device found.');
+                res.status(404).send();
+            }
+        } catch(error) {
+            logger.error(error);
+            res.status(500).send(error);
         }
     });
 
-    RED.httpAdmin.get('/linking-device/getServices/:address', function(req, res) {
-        const address = req.params.address;
+    // Returns services of specified device
+    RED.httpAdmin.get('/linking-device/getServices/:localName', function(req, res) {
+        const localName = req.params.localName;
 
-        if (address && linkingDevices[address]) {
-            const device = linkingDevices[address];
-            const services = deviceServices[address];
-            const localName = device.advertisement && device.advertisement.localName;
-            console.log('linking-device/getServices/' + localName);
+        try {
+            logger.log('linking-device/getServices/' + localName);
 
-            function connectDevice() {
-                console.log(TAG + 'connecting to ' + localName);
+            if (localName) {
+                const services = deviceServices[localName];
 
-                // relied on node-linking internal implementation
-                device._peripheral.once('connect', function(error) {
-                    if (error) {
-                        console.log(TAG + 'connet error: ' + error);
-                    }
-                });
-
-                device.connect().then(function() {
-                    deviceServices[address] = device.services;
-
-                    console.debug('Service of ' + address + ':' + JSON.stringify(device.services));
-                    res.status(200).send(Object.keys(device.services));
-                    device.disconnect();
-                }).catch(function(error) {
-                    console.error('linking-device/getServices/ failed: ' + error);
-                    res.status(500).send();
-                });
-            }
-
-            if (services) {
-                // cache exists
-                res.status(200).send(Object.keys(device.services));
-            } else if (scanning) {
-                // Stop scanning then connect to get services
-                linking.noble.once('scanStop', connectDevice) ;
-                restartRequired = true;
-                linking.noble.stopScanning();
+                if (services) {
+                    res.status(200).send(services);
+                } else {
+                    connectDevice(localName).then(function(device) {
+                        logger.debug('Service of ' + localName + ':' + JSON.stringify(device.services));
+                        res.status(200).send(device.services);
+                    }).catch(function(error) {
+                        logger.warn('linking-device/getServices/ failed to connect ' + localName + ' : ' + error);
+                        res.status(404).send();
+                    });
+                }
             } else {
-                connectDevie();
+                logger.warn('linking-device/getServices/ failed: no localName specified');
+                res.status(400).send();
             }
-        } else {
-            console.warn('linking-device/getServices/ failed: no such address: ' + address);
-            res.status(404).send();
+        } catch(error) {
+            logger.error('linking-device/getServices/ failed: ' + error);
+            res.status(500).send();
         }
+    });
+
+    // Turn on led of specified device
+    RED.httpAdmin.get('/linking-device/turnOnLed/:localName/:color/:pattern', function(req, res) {
+        const localName = req.params.localName;
+        const color = req.params.color;
+        const pattern = req.params.pattern;
+
+        try {
+            logger.log('linking-device/turnOnLed/' + localName + '/' + color + '/' + pattern);
+
+            if (! localName) {
+                logger.warn('linking-device/getServices/ failed: no localName specified');
+                res.status(400).send();
+                return;
+            }
+
+            if (linkingDevices[localName] &&
+                deviceServices[localName] && (! deviceServices[localName].led)) {
+
+                logger.warn('linking-device/turnOnLed/ failed. no led service: ' + localName);
+                res.status(400).send();
+                return;
+            }
+            
+            connectDevice(localName).then(function(device) {
+                if (device.services.led) {
+                    device.services.led.turnOn(color, pattern).then(function(res) {
+                        if (!res.resultCode === 0) {
+                            logger.warn('led.turnOn() failed. resultCode:'
+                                        + res.resultCode + '. ' + res.resultText);
+                        }
+                        res.status(200).send();
+                    }).catch(function(error) {
+                        logger.warn('led.turnOn() failed. ' + error);
+                        res.status(400).send();
+                    });
+                } else {
+                    logger.warn('linking-device/turnOnLed/ failed: no localName specified');
+                    res.status(400).send();
+                    return;
+                }
+            }).catch(function(error) {
+                logger.warn('linking-device/turnOnLed/ failed to connect ' + localName + ' : ' + error);
+                res.status(404).send();
+                return;
+            });
+        } catch(error) {
+            logger.error('linking-device/turnOnLed/ failed: ' + error);
+            res.status(500).send();
+        }
+
     });
 };
 

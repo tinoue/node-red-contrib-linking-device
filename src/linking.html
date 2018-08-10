@@ -134,6 +134,8 @@
 
             var getDevices = function(callback) {
                 $.getJSON('linking-device/getDevices/', function(data) {
+                    console.dir(data);
+
                     $('#node-input-device').find('option').remove().end();
                     for (var d in data) {
                         $('<option/>', {
@@ -173,7 +175,7 @@
                                 for (var color in services.led.colors) {
                                     $('<option/>', {
                                         text: color,
-                                        value: services.led.colors[led]
+                                        value: services.led.colors[color]
                                     }).appendTo('#node-input-color');
                                 }
 
@@ -197,7 +199,7 @@
                                 for (var pattern in services.led.patterns) {
                                     $('<option/>', {
                                         text: pattern,
-                                        value: services.led.patterns[led]
+                                        value: services.led.patterns[pattern]
                                     }).appendTo('#node-input-pattern');
                                 }
 
@@ -210,8 +212,11 @@
                                 $('#node-input-pattern').removeClass('disabled');
                             }
                         }
-                    }).fail(function(jqXHR, textStatus, errorThrown) {
+
+                        callback && callback();
+                    }).fail(function(_jqXHR, textStatus, _errorThrown) {
                         console.warn('Problem getting services: ' + textStatus);
+                        callback && callback();
                     });
                 }
             };
@@ -241,6 +246,7 @@
                     node.address = address;
 
                     getLedService(function() {
+                        // do nothing ?
                     });
                 } else {
                     $('#node-input-color').addClass('disabled');
@@ -249,7 +255,7 @@
             });
 
             refreshDevice(function() {
-                getLedService()
+                getLedService();
             });
         },
         oneditsave: function() {
