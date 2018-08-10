@@ -29,9 +29,9 @@
 	        "argsIgnorePattern": "^_"
 	    }]
     },
-    "globals": [
+    "globals": {
         "RED": false
-    ],
+    },
     "plugins": [
         "html"
     ]
