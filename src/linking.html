@@ -135,7 +135,10 @@
         color: '#C0DEED',
         defaults: {
             name: {value:""},
-            device: {value:""},
+            device: {
+                value:"",
+                required: true
+            },
             color: {value:""},
             pattern: {value:""}    
         },
@@ -144,7 +147,7 @@
         align: 'right',
         icon: "light.png",
         label: function() {
-            return this.name||"linking-led";
+            return this.name||this.device||"linking-led";
         },
         oneditprepare: function() {
             var node = this;
@@ -382,8 +385,8 @@
         <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
-        <label for="node-input-sensor-interval"><i class="fa fa-repeat"></i> Duration</label>
-	    <input type="text" id="node-input-sensor-interval" placeholder="Interval in minutes">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
+	    <input type="text" id="node-input-interval" placeholder="Interval in minutes">
     </div>
     <div class="form-row" style="margin-bottom:0;">
         <label for="node-input-services"><i class="fa fa-random"></i> Sensor</label>
@@ -466,9 +469,7 @@
             name: {value:""},
             device: {
                 value:"",
-                validate: function(v) {
-                    return v != "";
-                }
+                required: true
             },
             interval: {
                 value: "",
@@ -483,7 +484,7 @@
         align: 'left',
         icon: "serial.png",
         label: function() {
-            return this.name||"linking-sensor";
+            return this.name||this.device||"linking-sensor";
         },
         oneditprepare: function() {
             var node = this;
@@ -548,6 +549,10 @@
                         console.dir(services);
 
                         if (services) {
+                            if (services.battery != null) {
+                                // battery is not recommended. seems to beuselress
+                                services.battery = false;
+                            }
                             node.services = node.services || services;
 
                             for(let i in servicesList) {
@@ -616,7 +621,7 @@
                 if (device) {
                     if (node.device != device) {
                         for(let i in servicesList) {
-                            setService(servicesList[i], null);
+                            setService(servicesList[i], false);
                         }
 
                         getSensorServices();
@@ -633,7 +638,7 @@
 
                 for(let i in servicesList) {
                     const service = servicesList[i];
-                    setService(service, node.services ? node.services[service] : null);
+                    setService(service, node.services ? node.services[service] : false);
                 }                    
 
                 if (! node.services) {

@@ -8,6 +8,8 @@ const linking = new Linking();
 
 const TAG = 'linking-device: ';
 
+const MAX_CONNECTION_INTERVAL = 500;  // 500ms
+
 module.exports = function(RED) {
     const logger = console;
     // manages internal events :
@@ -55,28 +57,45 @@ module.exports = function(RED) {
     function onNobleDiscover(peripheral) {
         const ad = peripheral.advertisement;
         if (!ad.localName) {
-            // logger.warn(TAG + 'Invalid advertisement. No localName.');
-            return;
+            logger.debug(TAG + 'Check passive scan');
+            // Search its localName from devices which have been discovered.
+            for (let name in linkingDevices) {
+                if (linkingDevices[name].advertisement.address === ad.address) {
+                    logger.debug('found name ' + name);
+                    ad.localName = name;
+                    break;
+                }
+            }
+
+            if (!ad.localName) {
+                return;
+            }
+
+            logger.debug(TAG + 'Got by passive scan :' + ad.localName);
+            ad.passive = true;
         }
 
         // logger.debug(TAG + 'Got advertisement: ' + ad.localName);
 
         const advertisement = LinkingAdvertising.parse(peripheral);
         if (advertisement) {
-            const device = new LinkingDevice(linking.noble, peripheral);
-            if (device) {
-                if (! linkingDevices[advertisement.localName]) {
-                    logger.log(TAG + 'found device: ' + advertisement.localName);
-                    linkingDevices[advertisement.localName] = device;
+            let device = linkingDevices[advertisement.localName];
+
+            if (! device) {
+                device = new LinkingDevice(linking.noble, peripheral);
+
+                if (! device) {
+                    logger.warn(TAG + 'Advertisement has no device object');
+                    return;
                 }
 
-                const deviceNum =  + Object.keys(linkingDevices).length;
-                event.emit('scanStatus', {fill:'green',shape:'dot',text:'scanning. found ' + deviceNum});
-                event.emit('discover', advertisement, device);
-            } else {
-                logger.warn(TAG + 'Advertisement has no device object');
-                return;
+                logger.log(TAG + 'found device: ' + advertisement.localName);
+                linkingDevices[advertisement.localName] = device;
             }
+
+            const deviceNum =  + Object.keys(linkingDevices).length;
+            event.emit('scanStatus', {fill:'green',shape:'dot',text:'scanning. found ' + deviceNum});
+            event.emit('discover', advertisement, device);
         } else {
             logger.warn(TAG + 'Invalid advertisement object');
             return;
@@ -461,12 +480,12 @@ module.exports = function(RED) {
 
     //    localName
     //    timeout: Optional. Default is 10 seconds.
-    // Returns Promise<Device>
+    // Returns Promise<Device, alreadyConnected>
     function connectDevice(localName, timeout) {
         return new Promise(function(resolve, reject) {
             let device = linkingDevices[localName];
             if (device && device.connected) {
-                resolve(device);
+                resolve(device, true);
                 return;
             }
 
@@ -597,7 +616,7 @@ module.exports = function(RED) {
                 node.debug('Turning LED on.');
                 node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
-                connectDevice(localName).then(function(device) {
+                connectDevice(localName).then(async function(device, alreadyConnected) {
                     if (! device.services || ! device.services.led) {
                         node.error('LED service unsupported: ' + localName);
                         node.status({fill:'red', shape:'ring', text:'No led support'});
@@ -606,6 +625,10 @@ module.exports = function(RED) {
 
                     event.on('disconnect', onDisconnect);
                     node.status({fill:'green', shape:'dot', text:'connected'});
+
+                    if (! alreadyConnected) {
+                        await sleep(MAX_CONNECTION_INTERVAL);
+                    }
 
                     if (msg.payload) {
                         // turn on led
@@ -669,11 +692,15 @@ module.exports = function(RED) {
 
         function startSensor(service) {
             return new Promise(function(resolve, _reject) {
-                connectDevice(localName).then(function(device) {
+                connectDevice(localName).then(async function(device, alreadyConnected) {
                     if (device.services && device.services[service]) {
                         if (typeof(device.services[service].start) === 'function') {
 
-                            device.services[service].start(function(result) {
+                            if (! alreadyConnected) {
+                                await sleep(MAX_CONNECTION_INTERVAL);
+                            }
+
+                            device.services[service].start().then(function(result) {
                                 if (result.resultCode === 0) {
                                     node.debug(service + 'notification started.');
                                     node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
@@ -787,7 +814,7 @@ module.exports = function(RED) {
             try {
                 sensorEnabled = msg.payload;
 
-                localName = msg.device || config.device;
+                localName = config.device;
                 sensorInterval = (msg && typeof(msg.interval) === 'number')
                     ? msg.interval : config.interval || 0;
                 sensorServices = msg.services || config.services;
@@ -809,12 +836,12 @@ module.exports = function(RED) {
 
                     for(let service of Object.keys(sensorServices)) {
                         if (sensorServices[service] != null) {
+                            await sleep(MAX_CONNECTION_INTERVAL);
+
                             if (sensorEnabled && sensorServices[service] === true) {
-                                startSensor(service);
-                                await sleep(1000); // magic
+                                await startSensor(service);
                             } else {
-                                stopSensor(service);
-                                await sleep(1000); // magic
+                                await stopSensor(service);
                             }
                         }
                     }
@@ -862,7 +889,7 @@ module.exports = function(RED) {
                         if (typeof (device.services[service].stop) === 'function') {
                             try {
                                 await device.services[service].stop();
-                                await sleep(100);
+                                await sleep(MAX_CONNECTION_INTERVAL);
                             } catch(error) {
                                 node.warn('failed to stop ' + service + ': ' + error);
                             }
@@ -873,6 +900,7 @@ module.exports = function(RED) {
                 node.warn('failed to close: ' + error);
             }
 
+            node.status({fill:'grey', shape:'dot', text:'idle'});
             closed();
         });
     }
@@ -979,8 +1007,12 @@ module.exports = function(RED) {
                 return;
             }
             
-            connectDevice(localName).then(function(device) {
+            connectDevice(localName).then(async function(device, alreadyConnected) {
                 if (device.services && device.services.led) {
+                    if (! alreadyConnected) {
+                        await sleep(MAX_CONNECTION_INTERVAL);
+                    }
+
                     logger.debug('calling led.turnOn()');
                     device.services.led.turnOn(color, pattern).then(function(result) {
                         if (result.resultCode === 0) {
