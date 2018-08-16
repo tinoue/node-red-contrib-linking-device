@@ -1,5 +1,6 @@
 const EventEmitter = require('events').EventEmitter;
-const connectSem = require('semaphore')(1);
+const Semaphore = require('semaphore');
+const RateLimiter = require('limiter').RateLimiter;
 
 const Linking = require('node-linking');
 const LinkingAdvertising = require('node-linking/lib/modules/advertising');
@@ -17,6 +18,7 @@ module.exports = function(RED) {
     //   connect(localName), disconnect(localName)
     //   notify(localName, service, data)
     const event = new EventEmitter();
+    const connectSem = Semaphore(1);
 
     let scanning = false;
 
@@ -240,8 +242,11 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        let scanDuration;
+        let scanDuration = config.duration || 0;
         let scanTimerId;
+
+        const scannerLimiter = {};
+        let scannerInterval = config.interval || 0;
 
         const serviceNames = {
             '1': 'temperature',
@@ -280,6 +285,14 @@ module.exports = function(RED) {
                             service: serviceName,
                         };
                         msg.topic = msg.payload.device + ' ' + msg.payload.service;
+                        if (scannerLimiter[msg.topic] == null) {
+                            scannerLimiter[msg.topic]
+                                = new RateLimiter(1, scannerInterval * 1000);
+                        } else {
+                            if (! scannerLimiter[msg.topic].tryRemoveTokens(1)) {
+                                return;
+                            }
+                        }
 
                         if (data[serviceName]) {
                             msg.payload.value = data[serviceName];
@@ -349,7 +362,16 @@ module.exports = function(RED) {
             try {
                 if (msg.payload) {
                     scanDuration = (msg && typeof(msg.duration) === 'number')
-                        ? msg.duration : config.duration;
+                        ? msg.duration : config.duration || 0;
+        
+                    scannerInterval = (msg && typeof(msg.interval) === 'number')
+                        ? msg.interval : config.interval || 0;
+
+                    for (let topic in scannerLimiter) {
+                        scannerLimiter[topic]
+                            = new RateLimiter(1, scannerInterval * 1000);
+                    }
+
                     startScan();
                 } else {
                     stopScanTimer();
@@ -371,6 +393,7 @@ module.exports = function(RED) {
         node.on('close', function(remove, done) {
             function closed() {
                 node.log('linking-scanner closed.');
+                node.status({fill:'grey', shape:'dot',text:'idle'});
                 done();
             }
 
@@ -499,12 +522,6 @@ module.exports = function(RED) {
 
             connectSem.take(async function() {
                 try {
-                    const onSuccess = function() {
-                        connectingRequestNum--;
-                        connectSem.leave();
-                        resolve(device);
-                    };
-
                     // NOTE: getDevice should be called while taking semaphore
                     device = device || await getDevice(localName, timeout);
 
@@ -538,7 +555,9 @@ module.exports = function(RED) {
 
                     event.emit('connect', localName);
 
-                    onSuccess();
+                    connectingRequestNum--;
+                    connectSem.leave();
+                    resolve(device, false);
                 } catch(error) {
                     logger.warn(error);
 
@@ -659,8 +678,11 @@ module.exports = function(RED) {
             node.on('close', function(_remove, done) {
                 event.removeListener('disconnect', onDisconnect);
                 node.debug('linking-led: Closing.');
+                node.status({fill:'grey', shape:'dot',text:'idle'});
                 done();
             });
+
+            node.status({fill:'grey', shape:'dot',text:'idle'});
         } catch(e) {
             node.error('linking-led: ' + e);
         }
@@ -675,24 +697,44 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         let node = this;
         let localName = config.device;
-        let sensorServices = config.services;
+        let sensorServices = config.services || {};
+        let messageLimiter = {};
 
         let sensorEnabled = false;
-        let sensorInterval;
+        let sensorInterval = 0; // seconds
+        let requestSemaphore = Semaphore(1);
 
         let notifyCount = 0;
 
+        function takeRequestSemaphore() {
+            return new Promise(function(resolve, _reject) {
+                const available = requestSemaphore.available();
+                if (available) {
+                    requestSemaphore.take(resolve);
+                }
+
+                requestSemaphore.take(resolve);
+            });
+        }
+
         function setRestartTimer(service) {
-            if (sensorEnabled) {
+            if (sensorEnabled && sensorServices[service]) {
+                node.debug('restart timer: ' + service); // DEBUG
                 setTimeout(function() {
-                    startSensor(service);
-                }, Math.max(60 * 1000, sensorInterval * 60 * 1000));
+                    try {
+                        startSensor(service);
+                    } catch(error) {
+                        node.info('failed to start sensor: ' + service);
+                    }
+                }, Math.max(60 * 1000, sensorInterval * 1000));
             }
         }
 
         function startSensor(service) {
+            node.log('startSensor: ' + service); // DEBUG
             return new Promise(function(resolve, _reject) {
                 connectDevice(localName).then(async function(device, alreadyConnected) {
+                    node.log('startSensor device connected: ' + service); // DEBUG
                     if (device.services && device.services[service]) {
                         if (typeof(device.services[service].start) === 'function') {
 
@@ -700,9 +742,11 @@ module.exports = function(RED) {
                                 await sleep(MAX_CONNECTION_INTERVAL);
                             }
 
+                            node.log('starting sensor: ' + service); // DEBUG
                             device.services[service].start().then(function(result) {
+                                node.log('started sensor: ' + service); // DEBUG
                                 if (result.resultCode === 0) {
-                                    node.debug(service + 'notification started.');
+                                    node.debug(service + ' notification started.');
                                     node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
                                 } else {
                                     node.warn('failed to start ' + service + ': ' + result.resultText);
@@ -718,8 +762,9 @@ module.exports = function(RED) {
                                 resolve(); // no reject
                             });
                         } else {
-                            // The sensor doen't require start();
-                            resolve(); // no reject
+                            // The sensor doen't require start() but it is expected condition.
+                            setRestartTimer(service);	// Set restart in case of disconnection
+                            resolve();
                         }
                     } else {
                         node.warn('invalid service: ' + service);
@@ -739,14 +784,20 @@ module.exports = function(RED) {
         function stopSensor(service) {
             return new Promise(function(resolve, reject) {
                 const device = linkingDevices[localName];
+                node.debug('stopSensor ' + service); // DEBUG
 
                 if (device && device.services && device.services[service]) {
-                    if (1 < sensorInterval && typeof(device.services[service].stop) === 'function') {
-                        device.services[service].stop().then(setRestartTimer).catch(function(error) {
+                    if ((! sensorEnabled || 60 <= sensorInterval) &&
+                        typeof(device.services[service].stop) === 'function') {
+                        device.services[service].stop().then(function() {
+                            node.debug('stopSensor stopped');
+                            setRestartTimer(service);
+                            resolve();
+                        }).catch(function(error) {
                             node.warn('failed to stop ' + service + ' : ' + error);
 
                             setRestartTimer(service);
-                            resolve();
+                            resolve(); // No reject.
                         });
                     } else {
                         // calling start() isn't required but call this to reconnect if disconnected.
@@ -761,6 +812,12 @@ module.exports = function(RED) {
 
         function onNotify(name, service, data) {
             if (localName === name && sensorEnabled) {
+                const limiter = messageLimiter[service];
+                if (limiter != null && ! limiter.tryRemoveTokens(1)) {
+                    // throttling this message
+                    return;
+                }
+
                 notifyCount++;
                 node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
 
@@ -825,23 +882,39 @@ module.exports = function(RED) {
                     return;
                 }
 
-                node.debug('Starting sensor.');
+                node.debug('Starting sensor: ' + localName);
                 node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
-                connectDevice(localName).then(async function(device) {
+                connectDevice(localName).then(async function(device, alreadyConnected) {
+                    node.debug('connected'); // DEBUG
+
                     // If no service configuration then watch all available sensors.
                     if (! sensorServices) {
                         sensorServices = device.services;
                     }
 
-                    for(let service of Object.keys(sensorServices)) {
-                        if (sensorServices[service] != null) {
-                            await sleep(MAX_CONNECTION_INTERVAL);
+                    if (! alreadyConnected) {
+                        await sleep(MAX_CONNECTION_INTERVAL);
+                    }
 
-                            if (sensorEnabled && sensorServices[service] === true) {
-                                await startSensor(service);
-                            } else {
-                                await stopSensor(service);
+                    for(let service in sensorServices) {
+                        const serviceObj = device.services[service];
+                        if (sensorServices[service] != null && ('onnotify' in serviceObj)) {
+                            if (typeof(serviceObj.start) === 'function') {
+                                messageLimiter[service]
+                                    = new RateLimiter(1, sensorInterval * 1000);
+                            }
+
+                            try {
+                                if (sensorEnabled && sensorServices[service] === true) {
+                                    await startSensor(service);
+                                } else {
+                                    await stopSensor(service);
+                                }
+
+                                await sleep(MAX_CONNECTION_INTERVAL);
+                            } catch (error) {
+                                node.warn('error start/stopping sensor: ' + service);
                             }
                         }
                     }
@@ -877,25 +950,7 @@ module.exports = function(RED) {
                 event.removeListener('disconnect', onDisconnect);
                 event.removeListener('notify', onNotify);
             
-                if (remove &&
-                    localName && linkingDevices[localName] &&
-                    linkingDevices[localName].connected) {
-
-                    const device = linkingDevices[localName];
-                    node.log('linking-sensor: Stopping sensors.');
-
-                    // Stopping all sensor notification
-                    for (let service in sensorServices) {
-                        if (typeof (device.services[service].stop) === 'function') {
-                            try {
-                                await device.services[service].stop();
-                                await sleep(MAX_CONNECTION_INTERVAL);
-                            } catch(error) {
-                                node.warn('failed to stop ' + service + ': ' + error);
-                            }
-                        }
-                    }
-                }
+                // I's not neccessary to stop sensors. They will by stopped by onNotify()
             } catch(error) {
                 node.warn('failed to close: ' + error);
             }

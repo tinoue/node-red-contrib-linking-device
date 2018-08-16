@@ -14,6 +14,10 @@
         <label for="node-input-duration"><i class="icon-tag"></i> Duration</label>
 	    <input type="text" id="node-input-duration" placeholder="Duration in seconds (&gt;= 5sec or 0 for forever)">
     </div>
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
+	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="linking-scanner">
@@ -30,37 +34,95 @@
         </dd>
         <dt>duration <span class="property-type">number</span></dt>
         <dd>
-          <code>msg.duration</code> specifies Number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node keeps scanning forever. Though using linking-scanner and linking-led will stop the scanning.
+          <code>msg.duration</code> specifies number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node tries to keep scanning forever.
+        </dd>
+        <dt>interval <span class="property-type">number</span></dt>
+        <dd>
+          <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get so many beacon data.
         </dd>
       </dl>
     </h3>
     <h3>Output</h3>
       <ol class="node-ports">
-        <li>Advertising data output
+        <li>Beacon data output
           <dl class="message-properties">
-            <p>This node outputs a <code>msg</code> of advertising data which looks like:</p>
+            <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
             <dl>
               <dt>Temperature</dt>
               <dd>
             <pre>{
   advertisement: LinkingAdvertisement object,
-  address: "f6:36:e4:99:xx:xx",
-  distance: 1.1220184543019633,
   payload: {
-    localName: "Tukeru_th012345",
-    name: "temperature",
+    device: "Tukeru_th012345",
+    service: "temperature",
     value: 33.5,
   }
 }</pre>
              </dd>
             </dl>    
-            <p>The message is a subset of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>. But <code>msg.advertisement</code> also has the original LinkingAdvertisement Object.
+            <dl>
+              <dt>Humidity</dt>
+              <dd>
+            <pre>{
+  advertisement: LinkingAdvertisement object,
+  payload: {
+    device: "Tukeru_th012345",
+    service: "humidity",
+    value: 50.5,
+  }
+}</pre>
+             </dd>
+            </dl>    
+            <dl>
+              <dt>Air pressure</dt>
+              <dd>
+            <pre>{
+  advertisement: LinkingAdvertisement object,
+  payload: {
+    device: "ShizukuTHA_th012345",
+    service: "pressure",
+    value: 1013,
+  }
+}</pre>
+             </dd>
+            </dl>    
+            <dl>
+              <dt>Button</dt>
+              <dd>
+            <pre>{
+  advertisement: LinkingAdvertisement object,
+  payload: {
+    device: "Pochiru_th012345",
+    service: "button",
+    value: {
+        buttonName: 'SingleClick',
+        buttonId: 2
+    },
+  }
+}</pre>
+             <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
+             </dd>
+            </dl>    
+            <dl>
+              <dt>Illuminance</dt>
+              <dd>
+            <pre>{
+  advertisement: LinkingAdvertisement object,
+  payload: {
+    device: "SizukuLux_th012345",
+    service: "illuminance",
+    value: 242,
+  }
+}</pre>
+             </dd>
+            </dl>    
+            <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
           </dl>
         </li>
         <li>Stop scanning notification
           <dl class="message-properties">
             <dt>payload <span class="property-type">boolean</span><dt>
-            <dd><code>true</code> if scan stops normally. <code>false</code> if scan stops unexpectedly so you might want to restart scanning.
+            <dd><code>true</code> if scan is suspending while connecting to device and will restart later. <code>false</code> if scan stops unexpectedly so you might want to restart scanning.
           </dl>
         </li>
       </ol>
@@ -83,6 +145,12 @@
                 validate: function(v) {
                     return v >= 5 || v == 0;
                 }
+            },
+            interval: {
+                value: "",
+                validate: function(v) {
+                    return v === undefined || v >= 0;
+                }
             }
         },
         inputs:1,
@@ -91,7 +159,16 @@
         label: function() {
             return this.name||"linking-scanner";
         },
-        outputLabels: ["advertisement", "end of scan notification"]
+        outputLabels: ["beacon data", "end of scan notification"],
+        oneditprepare: function() {
+            console.log('linking-scanner:oneditprepare()');
+        },
+        oneditsave: function() {
+            var node = this;
+
+            node.duration = $('#node-input-duraion').val();
+            node.interval = $('#node-input-interval').val();
+        }
     });
 </script>
 
@@ -386,7 +463,7 @@
     </div>
     <div class="form-row">
         <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
-	    <input type="text" id="node-input-interval" placeholder="Interval in minutes">
+	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
     </div>
     <div class="form-row" style="margin-bottom:0;">
         <label for="node-input-services"><i class="fa fa-random"></i> Sensor</label>
@@ -652,6 +729,7 @@
             var node = this;
 
             node.interval = $('#node-input-interval').val();
+
             if (node.services) {
                 for (let i in servicesList) {
                     const service = servicesList[i];
