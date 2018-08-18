@@ -43,89 +43,83 @@
       </dl>
     </h3>
     <h3>Output</h3>
-      <ol class="node-ports">
-        <li>Beacon data output
-          <dl class="message-properties">
-            <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
-            <dl>
-              <dt>Temperature</dt>
-              <dd>
-            <pre>{
+        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
+        <dl>
+          <dt>Temperature</dt>
+          <dd>
+        <pre>{
   advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_temperature'
   payload: {
     device: "Tukeru_th012345",
     service: "temperature",
-    value: 33.5,
+    data: 33.5,
   }
 }</pre>
-             </dd>
-            </dl>    
-            <dl>
-              <dt>Humidity</dt>
-              <dd>
-            <pre>{
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Humidity</dt>
+          <dd>
+        <pre>{
   advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_humidity'
   payload: {
     device: "Tukeru_th012345",
     service: "humidity",
-    value: 50.5,
+    data: 50.5,
   }
 }</pre>
-             </dd>
-            </dl>    
-            <dl>
-              <dt>Air pressure</dt>
-              <dd>
-            <pre>{
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Air pressure</dt>
+          <dd>
+        <pre>{
   advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_tha012345_temperature'
   payload: {
-    device: "ShizukuTHA_th012345",
+    device: "Sizuku_tha012345",
     service: "pressure",
-    value: 1013,
+    data: 1013,
   }
 }</pre>
-             </dd>
-            </dl>    
-            <dl>
-              <dt>Button</dt>
-              <dd>
-            <pre>{
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Button</dt>
+          <dd>
+        <pre>{
   advertisement: LinkingAdvertisement object,
+  topic: 'linking/Pichiru_012345_button'
   payload: {
     device: "Pochiru_th012345",
     service: "button",
-    value: {
+    data: {
         buttonName: 'SingleClick',
         buttonId: 2
     },
   }
 }</pre>
-             <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
-             </dd>
-            </dl>    
-            <dl>
-              <dt>Illuminance</dt>
-              <dd>
-            <pre>{
+         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Illuminance</dt>
+          <dd>
+        <pre>{
   advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_lux012345_illuminance'
   payload: {
     device: "SizukuLux_th012345",
     service: "illuminance",
-    value: 242,
+    data: 242,
   }
 }</pre>
-             </dd>
-            </dl>    
-            <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
-          </dl>
-        </li>
-        <li>Stop scanning notification
-          <dl class="message-properties">
-            <dt>payload <span class="property-type">boolean</span><dt>
-            <dd><code>true</code> if scan is suspending while connecting to device and will restart later. <code>false</code> if scan stops unexpectedly so you might want to restart scanning.
-          </dl>
-        </li>
-      </ol>
+         </dd>
+        </dl>    
+      </dl>
+      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
     </h3>
 </script>
 
@@ -154,12 +148,11 @@
             }
         },
         inputs:1,
-        outputs:2,
+        outputs:1,
         icon: "bluetooth.png",
         label: function() {
             return this.name||"linking-scanner";
         },
-        outputLabels: ["beacon data", "end of scan notification"],
         oneditprepare: function() {
             console.log('linking-scanner:oneditprepare()');
         },
@@ -204,6 +197,26 @@
 
 <script type="text/x-red" data-help-name="linking-led">
     <p>A node to control Linking LED device.</p>
+    <h3>Inputs</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">boolean</span></dt>
+        <dd>
+          <code>msg.payload</code> should be set to turn on/off LED.</dd> 
+        </dd>
+    <dt>device <span class="property-type">string</span> (Optional)</dt>
+        <dd>
+          <code>msg.device</code> specifies Device name like "Tukeru_th012345".
+        </dd>
+        <dt>color <span class="property-type">string</span> (Optional)</dt>
+        <dd>
+          <code>msg.color</code> specifies LED color like 'Red'. Available colors are depend on device.
+        </dd>
+        <dt>pattern <span class="property-type">string</span> (Optional)</dt>
+        <dd>
+          <code>msg.pattern</code> specifies LED pattern like 'Pattern1'. Available patterns are depend on device.
+        </dd>
+      </dl>
+    </h3>
 </script>
 
 <script type="text/javascript">
@@ -232,14 +245,14 @@
 
             var setDeviceList = function(device, selected) {
                 if ($('#node-input-device option[value="' + device + '"]').length === 0) {
-                    const option = $('<option/>', {
-                        selected: true,
+                    $('<option/>', {
+                        selected: !!selected,
                         value: device,
                         text: device
                     }).appendTo('#node-input-device');
-
+                } else {
                     if (selected) {
-                        option.prop('selected', true);
+                        $('#node-input-device option[value="' + device + '"]').prop('selected', true);
                     }
                 }
             };
@@ -273,11 +286,13 @@
             // callback(error)
             var getDevices = function(forceScan, callback) {
                 const url = 'linking-device/getDevices' + (forceScan ? '?forceScan=true' : '');
+
+                // devices: [{name:"Tukeru.."},{}...]
                 $.getJSON(url, function(devices) {
                     console.log('Got ' + devices.length + ' devices');
                     // $('#node-input-device').find('option').remove().end();
                     for (var i in devices) {
-                        setDeviceList(devices[i]);
+                        setDeviceList(devices[i].name);
                     }
 
                     if (node.device) {
@@ -412,6 +427,9 @@
                 // console.log('change(): ' + device);
 
                 if (device) {
+                    $('#node-input-color').find('option').remove().end();
+                    $('#node-input-pattern').find('option').remove().end();
+
                     if (node.device != device) {
                         getLedService();
                     }
@@ -424,6 +442,8 @@
             });
 
             if (node.device) {
+                getDevices();
+
                 setDeviceList(node.device, true);
 
                 if (node.color) {
@@ -434,7 +454,7 @@
                     setPatternList(node.pattern, true);
                 }
             } else {
-                refreshDevice(false);
+                getDevices();
             }
         },
         oneditsave: function() {
@@ -472,58 +492,60 @@
             <span>Temperature</span>
         </label>
     </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label>
-            <a id="node-input-sensor-refresh" class="btn"><i class="fa fa-refresh"></i></a>
-        </label>  
-        <label for="node-input-humidity" style="width:200px;">
-            <input type="checkbox" id="node-input-humidity" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Humidity</span>
-        </label>
+    <div id="node-input-sensors">
+        <div class="form-row" style="margin-bottom:0;">
+            <label>
+                <a id="node-input-sensor-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+            </label>  
+            <label for="node-input-humidity" style="width:200px;">
+                <input type="checkbox" id="node-input-humidity" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Humidity</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-pressure" style="width:200px;">
+                <input type="checkbox" id="node-input-pressure" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Air Pressure</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-battery" style="width:200px;">
+                <input type="checkbox" id="node-input-battery" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Battery</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-button" style="width:200px;">
+                <input type="checkbox" id="node-input-button" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Button</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-gyroscope" style="width:200px;">
+                <input type="checkbox" id="node-input-gyroscope" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Gyroscope</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-accelerometer" style="width:200px;">
+                <input type="checkbox" id="node-input-accelerometer" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Accelerometer</span>
+            </label>
+        </div>
+        <div class="form-row">
+            <label></label>  
+            <label for="node-input-orientation" style="width:200px;">
+                <input type="checkbox" id="node-input-orientation" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Orientation</span>
+            </label>
+        </div>
     </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label></label>  
-        <label for="node-input-pressure" style="width:200px;">
-            <input type="checkbox" id="node-input-pressure" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Air Pressure</span>
-        </label>
-    </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label></label>  
-        <label for="node-input-battery" style="width:200px;">
-            <input type="checkbox" id="node-input-battery" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Battery</span>
-        </label>
-    </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label></label>  
-        <label for="node-input-button" style="width:200px;">
-            <input type="checkbox" id="node-input-button" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Button</span>
-        </label>
-    </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label></label>  
-        <label for="node-input-gyroscope" style="width:200px;">
-            <input type="checkbox" id="node-input-gyroscope" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Gyroscope</span>
-        </label>
-    </div>
-    <div class="form-row" style="margin-bottom:0;">
-        <label></label>  
-        <label for="node-input-accelerometer" style="width:200px;">
-            <input type="checkbox" id="node-input-accelerometer" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Accelerometer</span>
-        </label>
-    </div>
-    <div class="form-row">
-        <label></label>  
-        <label for="node-input-orientation" style="width:200px;">
-            <input type="checkbox" id="node-input-orientation" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Orientation</span>
-        </label>
-    </div>
-
+    
     <div class="form-row">
         <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i>Turn on LED of this device</a>
     </div>
@@ -569,21 +591,21 @@
 
             var setDeviceList = function(device, selected) {
                 if ($('#node-input-device option[value="' + device + '"]').length === 0) {
-                    const option = $('<option/>', {
-                        selected: true,
+                    $('<option/>', {
+                        selected: !!selected,
                         value: device,
                         text: device
                     }).appendTo('#node-input-device');
-
+                } else {
                     if (selected) {
-                        option.prop('selected', true);
+                        $('#node-input-device option[value="' + device + '"]').prop('selected', true);
                     }
                 }
             };
 
             var setService = function(service, checked) {
                 $('#node-input-' + service).prop('checked', checked);
-                if (node.services && node.services[service] != null) {
+                if (node.services == null || node.services[service] != null) {
                     $('#node-input-' + service).prop('disabled', false);
                 } else {
                     $('#node-input-' + service).prop('disabled', true);
@@ -593,11 +615,13 @@
             // callback(error)
             var getDevices = function(forceScan, callback) {
                 const url = 'linking-device/getDevices' + (forceScan ? '?forceScan=true' : '');
+
+                // devices: [{name:"Tukeru.."},{}...]
                 $.getJSON(url, function(devices) {
                     console.log('Got ' + devices.length + ' devices');
-                    // $('#node-input-device').find('option').remove().end();
+
                     for (var i in devices) {
-                        setDeviceList(devices[i]);
+                        setDeviceList(devices[i].name);
                     }
 
                     if (node.device) {
@@ -626,16 +650,11 @@
                         console.dir(services);
 
                         if (services) {
-                            if (services.battery != null) {
-                                // battery is not recommended. seems to beuselress
-                                services.battery = false;
-                            }
-                            node.services = node.services || services;
-
                             for(let i in servicesList) {
                                 const service = servicesList[i];
                                 if (services[service] != null) {
-                                    services[service] = true;
+                                    // battery is not recommended. seems to be uselress
+                                    services[service] = (service !== 'battery');
                                 }
                                 setService(service, services[service]);
                             }
@@ -696,7 +715,9 @@
                 // console.log('change(): ' + device);
 
                 if (device) {
-                    if (node.device != device) {
+                    if (node.device !== device) {
+                        node.services = null;
+
                         for(let i in servicesList) {
                             setService(servicesList[i], false);
                         }
@@ -705,12 +726,12 @@
                     }
 
                     node.device = device;
-                } else {
-                    // TODO: disable checkboxes
                 }
             });
 
             if (node.device) {
+                getDevices();
+
                 setDeviceList(node.device, true);
 
                 for(let i in servicesList) {
