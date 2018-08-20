@@ -203,10 +203,6 @@
         <dd>
           <code>msg.payload</code> should be set to turn on/off LED.</dd> 
         </dd>
-    <dt>device <span class="property-type">string</span> (Optional)</dt>
-        <dd>
-          <code>msg.device</code> specifies Device name like "Tukeru_th012345".
-        </dd>
         <dt>color <span class="property-type">string</span> (Optional)</dt>
         <dd>
           <code>msg.color</code> specifies LED color like 'Red'. Available colors are depend on device.
@@ -220,19 +216,6 @@
 </script>
 
 <script type="text/javascript">
-    var disconnectDevice = function(device) {
-        if (device) {
-            const url = 'linking-device/disconnect/' + device;
-            $.ajax(url).done(function() {
-                console.log('disconnected: ' + device);
-            }).fail(function(_jqXHR, _textStatus, errorThrown) {
-                const message = 'Failed to disconnect device ' + device + ': ' + errorThrown;
-                console.warn(message);
-                window.alert(message);
-            });
-        }
-    }
-
     RED.nodes.registerType('linking-led',{
         category: 'Linking device',
         color: '#C0DEED',
@@ -320,6 +303,19 @@
 
                     callback && callback(message);
                 });
+            };
+
+            var disconnectDevice = function(device) {
+                if (device) {
+                    const url = 'linking-device/disconnect/' + device;
+                    $.ajax(url).done(function() {
+                        console.log('disconnected: ' + device);
+                    }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                        const message = 'Failed to disconnect device ' + device + ': ' + errorThrown;
+                        console.warn(message);
+                        window.alert(message);
+                    });
+                }
             };
 
             var getLedService = function(callback) {
@@ -790,6 +786,19 @@ a
 
                     callback && callback(message);
                 });
+            };
+
+            var disconnectDevice = function(device) {
+                if (device) {
+                    const url = 'linking-device/disconnect/' + device;
+                    $.ajax(url).done(function() {
+                        console.log('disconnected: ' + device);
+                    }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                        const message = 'Failed to disconnect device ' + device + ': ' + errorThrown;
+                        console.warn(message);
+                        window.alert(message);
+                    });
+                }
             };
 
             var getSensorServices = function(callback) {

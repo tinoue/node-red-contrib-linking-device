@@ -9,7 +9,6 @@ const linking = new Linking();
 
 const TAG = 'linking-device: ';
 
-const MAX_CONNECTION_INTERVAL = 500;  // 500ms
 const REQUEST_TIMEOUT = 60 * 1000;	// 1sec
 const SCANNER_RESTART_INTERVAL = 60 * 1000;	// 1sec
 
@@ -93,7 +92,7 @@ module.exports = function(RED) {
     ////////////////////////////////////////////////////////////////
     // Common function for scanning (discovery)
     ////////////////////////////////////////////////////////////////
-
+    /*
     function sleep(msec) {
         return new Promise((resolve, _reject) => {
             if (msec === 0) {
@@ -103,7 +102,7 @@ module.exports = function(RED) {
             }
         });
     }
-
+    */
     function getTopic(localName, service) {
         return 'linking/' + localName + '_' + service;
     }
@@ -655,6 +654,8 @@ module.exports = function(RED) {
         } catch(error) {
             logger.warn(error + ': ' + localName);
 
+            clearTimeout(connectTimerId);
+
             if (leaveSemaphore) {
                 try {
                     leaveSemaphore = false;
@@ -736,7 +737,8 @@ module.exports = function(RED) {
 
         try {
             node.on('input', async (msg) => {
-                localName = msg.device || config.device;
+                // do not use msg.device because of possible connection management issue.
+                localName = config.device;
 
                 if (! localName) {
                     node.error('no device name specified.');
@@ -933,8 +935,10 @@ module.exports = function(RED) {
 
                     try {
                         node.debug('stopping sensor' + postfixMsg);
+
                         await requestSemaphore.take();
                         await device.services[service].stop();
+
                         node.debug('sensor stopped' + postfixMsg);
                     } catch(error) {
                         node.log('failed to stop sensor' + postfixMsg);
@@ -982,9 +986,7 @@ module.exports = function(RED) {
 
         function onDisconnect(name) {
             if (localName === name) {
-                if (sensorEnabled) {
-                    node.status({fill:'yellow', shape:'dot', text:'disconnected'});
-                }
+                node.status({fill:'yellow', shape:'dot', text:'disconnected'});
             }
         }
 
@@ -993,8 +995,9 @@ module.exports = function(RED) {
 
         node.on('input', (msg) => {
             try {
-                sensorEnabled = msg.payload;
+                sensorEnabled = !!msg.payload;
 
+                // do not use msg.device because of possible connection management issue..
                 localName = config.device;
                 sensorInterval = (msg && typeof(msg.interval) === 'number')
                     ? msg.interval : config.interval || 0;
@@ -1024,15 +1027,17 @@ module.exports = function(RED) {
                             }
 
                             try {
-                                if (sensorEnabled && sensorServices[service] === true) {
-                                    await startSensor(service);
+                                if (sensorEnabled) {
+                                    if (sensorServices[service]) {
+                                        await startSensor(service);
+                                    }
                                 } else {
-                                    await stopSensor(service);
+                                    if (sensorServices[service] != null) {
+                                        await startSensor(service);
+                                    }
                                 }
-
-                                await sleep(MAX_CONNECTION_INTERVAL);
                             } catch (error) {
-                                node.warn('error start/stopping sensor: ' + service);
+                                node.warn('error starting sensor: ' + service);
                             }
                         }
                     }
