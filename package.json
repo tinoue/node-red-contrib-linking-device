@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint src && eslint -c .eslintrc.html.json --ext .html src",
+    "lint": "eslint src || eslint -c .eslintrc.html.json --ext .html src",
     "lint:fix": "eslint src --fix && eslint -c .eslintrc.html.json --ext .html src"
   },
   "node-red": {

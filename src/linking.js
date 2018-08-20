@@ -251,6 +251,12 @@ module.exports = function(RED) {
             initLinking().then(() => {
                 return scanSemaphore.take();
             }).then(() => {
+                if (scanning) {
+                    scanSemaphore.leave();
+                    resolve();
+                    return;
+                }
+
                 event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'starting scan'});
 
                 linking.noble.startScanning(linking.PRIMARY_SERVICE_UUID_LIST, true, (error) => {
@@ -291,9 +297,17 @@ module.exports = function(RED) {
             initLinking().then(() => {
                 return scanSemaphore.take();
             }).then(() => {
+                if (! scanning) {
+                    scanSemaphore.leave();
+                    resolve();
+                    return;
+                }
+
                 event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'stopping scan'});
 
                 linking.noble.stopScanning((error) => {
+                    scanSemaphore.leave();
+
                     if (error) {
                         onError(error);
                     } else {
@@ -301,8 +315,6 @@ module.exports = function(RED) {
                         resolve();
                     }
                 });
-
-                scanSemaphore.leave();
             }).catch((error) => {
                 onError(error);
             });
@@ -459,11 +471,9 @@ module.exports = function(RED) {
         node.on('close', (remove, done) => {
             function closed() {
                 scannerExists = false;
-
                 node.debug('linking-scanner closed.');
-                node.status({fill:'grey', shape:'dot',text:'idle'});
 
-                setImmediate(done);
+                done();
             }
 
             try {
@@ -477,10 +487,12 @@ module.exports = function(RED) {
                 if (remove) {
                     scannerEnabled = false;
 
-                    stopNobleScan().then(() => {
-                        node.log('scan stopped.');
-                    }).catch((error) => {
-                        node.warn('failed to stop scanning: ' + error);
+                    setImmediate(() => {
+                        stopNobleScan().then(() => {
+                            // do nothing
+                        }).catch((error) => {
+                            logger.warn('failed to stop scanning: ' + error);
+                        });
                     });
                 }
 
@@ -569,21 +581,28 @@ module.exports = function(RED) {
     // Params:
     //    localName
     //    timeout: Optional. Default is 10 seconds.
-    // Returns async [Device, alreadyConnected]
+    // Returns async Device
     async function connectDevice(localName, timeout) {
         let connectTimerId;
         let leaveSemaphore;
 
+        logger.debug(TAG + 'Got request to connect to device: ' + localName);
+
         let device = linkingDevices[localName];
         if (device && device.connected) {
-            return [device, true];
+            return device;
         }
-
-        logger.debug(TAG + 'Got request to connect to device: ' + localName);
 
         try {
             await connectSemaphore.take();
             leaveSemaphore = true;
+
+            // Check again. 
+            device = linkingDevices[localName];
+            if (device && device.connected) {
+                connectSemaphore.leave();
+                return device;
+            }
 
             if (! device) {
                 device = await getDevice(localName, timeout);
@@ -636,7 +655,7 @@ module.exports = function(RED) {
             connectSemaphore.leave();
             leaveSemaphore = false;
 
-            return [device, false];
+            return device;
         } catch(error) {
             logger.warn(error);
 
@@ -656,6 +675,8 @@ module.exports = function(RED) {
     // Returns async
     // eslint-disable-next-line no-unused-vars
     async function disconnectDevice(localName) {
+        let leaveSemaphore;
+
         logger.log(TAG + 'disconnecting device: ' + localName);
 
         const device = linkingDevices[localName];
@@ -664,20 +685,41 @@ module.exports = function(RED) {
 
             logger.debug(TAG + errormsg);
             throw new Error(errormsg);
-        } else {
-            // This check might not be necessary
-            if (! device.connected) {
-                logger.log(TAG + 'device alread disconnected: ' + localName);
-                return;
-            }
+        }
 
-            try {
+        // This check might not be necessary
+        if (! device.connected) {
+            logger.debug(TAG + 'device alread disconnected: ' + localName);
+            return;
+        }
+
+        try {
+            await connectSemaphore.take();
+            leaveSemaphore = true;
+
+            // check again
+            if (device.connected) {
                 await device.disconnect();
                 logger.log(TAG + 'disconnected device: ' + localName);
-            } catch(error){
-                logger.warn(TAG + 'failed to disconnect device: ' + localName);
-                throw error;
+            } else {
+                logger.debug(TAG + 'device alread disconnected: ' + localName);
             }
+
+            connectSemaphore.leave();
+            leaveSemaphore = false;
+        } catch(error) {
+            logger.warn(TAG + 'failed to disconnect device: ' + localName);
+
+            if (leaveSemaphore) {
+                try {
+                    leaveSemaphore = false;
+                    connectSemaphore.leave();
+                } catch (error) {
+                    logger.warn('failed to leave semaphore' + error);
+                }
+            }
+
+            throw error;
         }
     }
 
@@ -716,7 +758,7 @@ module.exports = function(RED) {
                 node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
                 try {
-                    let [device /*, alreadyConnected*/] = await connectDevice(localName);
+                    let device = await connectDevice(localName);
 
                     if (! device.services || ! device.services.led) {
                         node.warn('LED service unsupported: ' + localName);
@@ -726,8 +768,6 @@ module.exports = function(RED) {
 
                     event.on('disconnect', onDisconnect);
                     node.status({fill:'green', shape:'dot', text:'connected'});
-
-                    // await sleep(alreadyConnected ? 0 ' MAX_CONNECTION_INTERVAL);
 
                     if (msg.payload) {
                     // turn on led
@@ -757,13 +797,30 @@ module.exports = function(RED) {
                 }
             });
 
-            node.on('close', () => {
-                // node.debug('linking-led Closing.');
+            node.on('close', (done) => {
+                function closed() {
+                    node.debug('linking-led closed.');
+                    node.status({fill:'grey', shape:'dot',text:'idle'});
+
+                    done();
+                }
+
+                node.debug('linking-led closing.');
 
                 event.removeListener('disconnect', onDisconnect);
-                node.status({fill:'grey', shape:'dot',text:'idle'});
 
-                node.debug('linking-led closed.');
+                if (linkingDevices[localName] &&linkingDevices[localName].connected) {
+                    node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
+
+                    disconnectDevice(localName).then(() => {
+                        closed();
+                    }).catch((error) => {
+                        node.warn('failed to disconnect: ' + localName + ': ' + error);
+                        closed();
+                    });
+                } else {
+                    closed();
+                }
             });
 
             node.status({fill:'grey', shape:'dot',text:'idle'});
@@ -806,8 +863,16 @@ module.exports = function(RED) {
             const postfixMsg = ': '+ localName + '/' + service;
             node.debug('startSensor' + postfixMsg);
 
+            if (! sensorEnabled) {
+                return;
+            }
+
             try {
-                let [device/*, alreadyConnected*/] = await connectDevice(localName);
+                let device = await connectDevice(localName);
+
+                if (! sensorEnabled) {
+                    return;
+                }
 
                 if (! device.services || ! device.services[service]) {
                     const errmsg = 'invalid service: ' + localName + '/' + service;
@@ -825,11 +890,13 @@ module.exports = function(RED) {
                     return;
                 }
 
-                // if (! alreadyConnected) {
-                //    await sleep(MAX_CONNECTION_INTERVAL);
-                // }
-
                 await requestSemaphore.take();
+
+                if (! sensorEnabled) {
+                    requestSemaphore.leave();
+                    return;
+                }
+
                 node.debug('starting sensor' + postfixMsg);
 
                 try {
@@ -946,15 +1013,11 @@ module.exports = function(RED) {
                 node.debug('Starting sensor: ' + localName);
                 node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
-                connectDevice(localName).then(async ([device, _alreadyConnected]) => {
+                connectDevice(localName).then(async (device) => {
                     // If no service configuration then watch all available sensors.
                     if (! sensorServices) {
                         sensorServices = device.services;
                     }
-
-                    // if (! alreadyConnected) {
-                    //     await 
-                    // }
 
                     for(let service in sensorServices) {
                         const serviceObj = device.services[service];
@@ -994,28 +1057,33 @@ module.exports = function(RED) {
             }
         });
 
-        node.on('close', () => {
+        node.on('close', (done) => {
             sensorEnabled = false;
 
             function closed() {
                 node.debug('linking-sensor closed.');
-                // done();
+                done();
             }
 
-            try {
-                node.debug('linking-sensor closing.');
-                node.status({fill:'grey', shape:'dot', text:'closing'});
+            node.debug('linking-sensor closing.');
 
-                event.removeListener('disconnect', onDisconnect);
-                event.removeListener('notify', onNotify);
+            event.removeListener('disconnect', onDisconnect);
+            event.removeListener('notify', onNotify);
             
-                // I's not neccessary to stop sensors. They will by stopped by onNotify()
-            } catch(error) {
-                node.warn('failed to close: ' + error);
+            if (linkingDevices[localName] && linkingDevices[localName].connected) {
+                node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
+
+                disconnectDevice(localName).then(() => {
+                    closed();
+                }).catch((error) => {
+                    node.warn('failed to disconnect: ' + localName + ':' + error);
+                    closed();
+                });
+            } else {
+                closed();
             }
 
             node.status({fill:'grey', shape:'dot', text:'idle'});
-            closed();
         });
     }
 
@@ -1090,7 +1158,7 @@ module.exports = function(RED) {
             if (services) {
                 res.status(200).send(services);
             } else {
-                connectDevice(localName).then(([device, _alreadyConnected]) => {
+                connectDevice(localName).then((device) => {
                     logger.debug('Service of ' + localName + ':' + JSON.stringify(device.services));
                     res.status(200).send(device.services);
                 }).catch((error) => {
@@ -1127,11 +1195,8 @@ module.exports = function(RED) {
                 return;
             }
             
-            connectDevice(localName).then(async ([device, alreadyConnected]) => {
+            connectDevice(localName).then(async (device) => {
                 if (device.services && device.services.led) {
-                    if (! alreadyConnected) {
-                        await sleep(MAX_CONNECTION_INTERVAL);
-                    }
 
                     logger.debug('calling led.turnOn()');
                     device.services.led.turnOn(color, pattern).then((result) => {
