@@ -108,36 +108,32 @@ module.exports = function(RED) {
         return 'linking/' + localName + '_' + service;
     }
 
-    function getBeaconData(data) {
-        if (data.serviceId) {
-            const serviceName = serviceNames[data.serviceId];
-
-            if (data[serviceName]) {
-                return data[serviceName];
-            } else {
-                switch(serviceName) {
-                case 'battery':
-                    return {
-                        chargeRequired: data.chargeRequired,
-                        chargeLevel: data.chargeLevel
-                    };
-                case 'button':
-                    return {
-                        buttonId: data.buttonId,
-                        buttonName: data.buttonName
-                    };
-                case 'gyroscope':
-                case 'accelerometer':
-                case 'orientation':
-                    return {
-                        x: data.x,
-                        y: data.y,
-                        z: data.z
-                    };
-                default:
-                    logger.debug('Unsupported beacon data: ' + JSON.strigify(data));
-                    break;
-                }
+    function getBeaconData(data, service) {
+        if (service && data[service]) {
+            return data[service];
+        } else {
+            switch(service) {
+            case 'battery':
+                return {
+                    chargeRequired: data.chargeRequired,
+                    chargeLevel: data.chargeLevel
+                };
+            case 'button':
+                return {
+                    buttonId: data.buttonId,
+                    buttonName: data.buttonName
+                };
+            case 'gyroscope':
+            case 'accelerometer':
+            case 'orientation':
+                return {
+                    x: data.x,
+                    y: data.y,
+                    z: data.z
+                };
+            default:
+                logger.debug('Unsupported beacon data: ' + JSON.strigify(data));
+                break;
             }
         }
 
@@ -375,7 +371,7 @@ module.exports = function(RED) {
                             payload : {
                                 device: localName,
                                 service: service,
-                                data: getBeaconData(data)
+                                data: getBeaconData(data, service)
                             },
                             topic: topic
                         };
@@ -974,7 +970,7 @@ module.exports = function(RED) {
                     payload: {
                         device: name,
                         service: service,
-                        data: getBeaconData(data)
+                        data: getBeaconData(data, service)
                     },
                     topic: getTopic(localName, service)
                 };
