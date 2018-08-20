@@ -246,7 +246,7 @@ module.exports = function(RED) {
             initLinking().then(() => {
                 return scanSemaphore.take();
             }).then(() => {
-                if (scanning) {
+                if (scanning || ! scannerEnabled) {
                     scanSemaphore.leave();
                     resolve();
                     return;
@@ -339,7 +339,7 @@ module.exports = function(RED) {
 
         function stopScanRetryTimer() {
             if (scanRetryTimerId) {
-                clearTimeout(scanRetryTimerId);
+                clearInterval(scanRetryTimerId);
                 scanRetryTimerId = undefined;
             }
         }
@@ -869,6 +869,7 @@ module.exports = function(RED) {
                 let device = await connectDevice(localName);
 
                 if (! sensorEnabled) {
+                    disconnectToStopAllSensors();
                     return;
                 }
 
@@ -892,6 +893,7 @@ module.exports = function(RED) {
 
                 if (! sensorEnabled) {
                     requestSemaphore.leave();
+                    disconnectToStopAllSensors();
                     return;
                 }
 
@@ -959,6 +961,66 @@ module.exports = function(RED) {
             }
         }
 
+        async function startAllSensors() {
+            node.debug('Starting sensor: ' + localName);
+            node.status({fill:'yellow', shape:'dot', text:'connecting'});
+
+            if (! sensorEnabled) {
+                return;
+            }
+
+            try {
+                const device = await connectDevice(localName);
+
+                // If no service configuration then watch all available sensors.
+                if (! sensorServices) {
+                    sensorServices = device.services;
+                }
+
+                for(let service in sensorServices) {
+                    const serviceObj = device.services[service];
+                    if (sensorServices[service] != null && ('onnotify' in serviceObj)) {
+                        if (typeof(serviceObj.start) === 'function') {
+                            messageLimiter[service]
+                                = new RateLimiter(1, sensorInterval * 1000);
+                        }
+
+                        try {
+                            if (sensorServices[service]) {
+                                await startSensor(service);
+                            }
+                        } catch (error) {
+                            node.warn('error starting sensor: ' + service);
+                        }
+                    }
+                }
+
+                // startSensor() would change this status later
+                node.status({fill:'green', shape:'dot', text:'connected'});
+            } catch(error) {
+                node.error('failed to connect ' + localName + ' : ' + error);
+                node.status({fill:'red', shape:'ring', text:'connect error'});
+
+                // Retry
+                setTimeout(() => {
+                    startAllSensors();
+                }, Math.max(60 * 1000, sensorInterval * 1000));
+            }
+        }
+
+        function disconnectToStopAllSensors() {
+            node.debug('Disconnecting to stop all sensors: ' + localName);
+            node.status({fill:'yellow', shape:'dot', text:'disconnecting'});
+                    
+            disconnectDevice(localName).then(() => {
+                // onDisconnect will set this status. but set also here if already disconnected
+                node.status({fill:'grey', shape:'dot', text:'idle'});
+            }).catch((error) => {
+                node.warn('failed to disconnect: ' + localName + ': ' + error);
+                node.status({fill:'red', shape:'ring', text:'disconnect error'});
+            });
+        }
+
         function onNotify(name, service, data) {
             if (localName === name && sensorEnabled) {
                 const limiter = messageLimiter[service];
@@ -986,7 +1048,13 @@ module.exports = function(RED) {
 
         function onDisconnect(name) {
             if (localName === name) {
-                node.status({fill:'yellow', shape:'dot', text:'disconnected'});
+                notifyCount = 0;
+
+                if (sensorEnabled) {
+                    node.status({fill:'yellow', shape:'dot', text:'disconnected'});
+                } else {
+                    node.status({fill:'grey', shape:'dot', text:'idle'});
+                }
             }
         }
 
@@ -1009,49 +1077,11 @@ module.exports = function(RED) {
                     return;
                 }
 
-                node.debug('Starting sensor: ' + localName);
-                node.status({fill:'yellow', shape:'dot', text:'connecting'});
-
-                connectDevice(localName).then(async (device) => {
-                    // If no service configuration then watch all available sensors.
-                    if (! sensorServices) {
-                        sensorServices = device.services;
-                    }
-
-                    for(let service in sensorServices) {
-                        const serviceObj = device.services[service];
-                        if (sensorServices[service] != null && ('onnotify' in serviceObj)) {
-                            if (typeof(serviceObj.start) === 'function') {
-                                messageLimiter[service]
-                                    = new RateLimiter(1, sensorInterval * 1000);
-                            }
-
-                            try {
-                                if (sensorEnabled) {
-                                    if (sensorServices[service]) {
-                                        await startSensor(service);
-                                    }
-                                } else {
-                                    if (sensorServices[service] != null) {
-                                        await startSensor(service);
-                                    }
-                                }
-                            } catch (error) {
-                                node.warn('error starting sensor: ' + service);
-                            }
-                        }
-                    }
-
-                    if (sensorEnabled) {
-                        // startSensor() would change this status later
-                        node.status({fill:'green', shape:'dot', text:'connected'});
-                    } else {
-                        node.status({fill:'grey', shape:'dot', text:'idle'});
-                    }
-                }).catch((error) => {
-                    node.error('failed to connect ' + localName + ' : ' + error);
-                    node.status({fill:'red', shape:'ring', text:'connect error'});
-                });
+                if (sensorEnabled) {
+                    startAllSensors();
+                } else {
+                    disconnectToStopAllSensors();
+                }
             } catch(error) {
                 node.error('exception: ' + error);
                 node.status({fill:'red', shape:'ring', text:'error'});
