@@ -657,7 +657,7 @@ module.exports = function(RED) {
 
             return device;
         } catch(error) {
-            logger.warn(error);
+            logger.warn(error + ': ' + localName);
 
             if (leaveSemaphore) {
                 try {
@@ -681,10 +681,10 @@ module.exports = function(RED) {
 
         const device = linkingDevices[localName];
         if (! device) {
-            const errormsg = 'can\t disconnect unpaired device: ' + localName;
+            const errormsg = 'can\'t disconnect unpaired device: ' + localName;
 
             logger.debug(TAG + errormsg);
-            throw new Error(errormsg);
+            return;
         }
 
         // This check might not be necessary
@@ -1136,6 +1136,31 @@ module.exports = function(RED) {
             }
         } catch(error) {
             logger.error(error);
+            res.status(500).send(error.message);
+        }
+    });
+
+    // Returns services of specified device
+    RED.httpAdmin.get('/linking-device/disconnect/:localName', (req, res) => {
+        const localName = req.params.localName;
+
+        try {
+            logger.log('linking-device/disconnect/' + localName);
+
+            if (! localName) {
+                logger.warn('linking-device/disconnects/ failed: no localName specified');
+                res.status(400).send('No device name.');
+                return;
+            }
+
+            disconnectDevice(localName).then(() => {
+                res.status(200).send();
+            }).catch((error) => {
+                logger.warn('linking-device/disconnects/ failed to disconnect ' + localName + ' : ' + error);
+                res.status(500).send(error.message);
+            });
+        } catch(error) {
+            logger.warn('linking-device/disconnects/ failed to disconnect ' + localName + ' : ' + error);
             res.status(500).send(error.message);
         }
     });
