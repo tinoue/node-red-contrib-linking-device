@@ -88,6 +88,7 @@ module.exports = function(RED) {
 
     let linkingDevices = {};    // key: localName, value: device object
     let deviceServices = {};    // key: localName, value: services
+    let deviceSemaphores = {};  // key; localname, value; semaphore to request to device
 
     ////////////////////////////////////////////////////////////////
     // Common function for scanning (discovery)
@@ -103,6 +104,14 @@ module.exports = function(RED) {
         });
     }
     */
+    function getDeviceSemaphore(localName) {
+        if (! deviceSemaphores[localName]) {
+            deviceSemaphores[localName] = new PromiseSemaphore(1, REQUEST_TIMEOUT);
+        }
+
+        return deviceSemaphores[localName];
+    }
+
     function getTopic(localName, service) {
         return 'linking/' + localName + '_' + service;
     }
@@ -524,7 +533,7 @@ module.exports = function(RED) {
     //    localName
     //    timeout: Optional. Default is 30 seconds.
     // Returns: async LinkingDevie
-    function getDevice(localName, timeout) {
+    function discoverDevice(localName, timeout) {
         return new Promise((resolve, reject) => {
             let scanTimerId;
 
@@ -600,7 +609,7 @@ module.exports = function(RED) {
             }
 
             if (! device) {
-                device = await getDevice(localName, timeout);
+                device = await discoverDevice(localName, timeout);
             }
 
             if (scanning) {
@@ -727,6 +736,8 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         let node = this;
         let localName = config.device;
+        let keepConnection;
+        let ledEnabled = true;
 
         const onDisconnect = (name) => {
             if (localName === name) {
@@ -739,6 +750,7 @@ module.exports = function(RED) {
             node.on('input', async (msg) => {
                 // do not use msg.device because of possible connection management issue.
                 localName = config.device;
+                keepConnection = (msg.keepConnection != null) ? msg.keepConnection : !!config.keepConnection;
 
                 if (! localName) {
                     node.error('no device name specified.');
@@ -755,12 +767,24 @@ module.exports = function(RED) {
                 node.debug('Turning LED on : ' + localName);
                 node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
+                await getDeviceSemaphore(localName).take();
+                if (! ledEnabled) {
+                    getDeviceSemaphore(localName).leave();
+                    return;
+                }
+
                 try {
                     let device = await connectDevice(localName);
+                    if (! ledEnabled) {
+                        getDeviceSemaphore(localName).leave();
+                        return;
+                    }
 
                     if (! device.services || ! device.services.led) {
                         node.warn('LED service unsupported: ' + localName);
                         node.status({fill:'red', shape:'ring', text:'No led support'});
+                        getDeviceSemaphore(localName).leave();
+
                         return;
                     }
 
@@ -768,7 +792,6 @@ module.exports = function(RED) {
                     node.status({fill:'green', shape:'dot', text:'connected'});
 
                     if (msg.payload) {
-                    // turn on led
                         try {
                             const res = await device.services.led.turnOn(msg.color, msg.pattern, msg.duration);
                             if (!res.resultCode === 0) {
@@ -792,10 +815,20 @@ module.exports = function(RED) {
                 } catch(error) {
                     node.log('failed to connect ' + localName + ' : ' + error);
                     node.status({fill:'red', shape:'ring', text:'connect error'});
+                } finally {
+                    if (! keepConnection) {
+                        try {
+                            await disconnectDevice(localName);
+                        } catch(error) {
+                            node.log('failed to disconnect ' + localName + ' : ' + error);
+                        }
+                    }
+
+                    getDeviceSemaphore(localName).leave();
                 }
             });
 
-            node.on('close', (done) => {
+            node.on('close', async (done) => {
                 function closed() {
                     node.debug('linking-led closed.');
                     node.status({fill:'grey', shape:'dot',text:'idle'});
@@ -803,6 +836,7 @@ module.exports = function(RED) {
                     done();
                 }
 
+                ledEnabled = true;
                 node.debug('linking-led closing.');
 
                 event.removeListener('disconnect', onDisconnect);
@@ -810,12 +844,17 @@ module.exports = function(RED) {
                 if (linkingDevices[localName] &&linkingDevices[localName].connected) {
                     node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
 
-                    disconnectDevice(localName).then(() => {
+                    await getDeviceSemaphore(localName).take();
+
+                    try {
+                        await disconnectDevice(localName);
                         closed();
-                    }).catch((error) => {
+                    } catch(error) {
                         node.warn('failed to disconnect: ' + localName + ': ' + error);
                         closed();
-                    });
+                    } finally {
+                        getDeviceSemaphore(localName).leave();
+                    }
                 } else {
                     closed();
                 }
@@ -834,14 +873,16 @@ module.exports = function(RED) {
     ////////////////////////////////////////////////////////////////
     function LinkingSensorNode(config) {
         RED.nodes.createNode(this, config);
+
+        const AUTOSTART_INTERVAL = 30 * 1000;
+
         let node = this;
         let localName = config.device;
         let sensorServices = config.services || {};
         let messageLimiter = {};
 
-        let sensorEnabled = false;
+        let sensorEnabled = config.autostart;
         let sensorInterval = 0; // seconds
-        let requestSemaphore = new PromiseSemaphore(1, REQUEST_TIMEOUT);
 
         let notifyCount = 0;
 
@@ -862,16 +903,19 @@ module.exports = function(RED) {
             node.debug('startSensor' + postfixMsg);
 
             if (! sensorEnabled) {
+                // NOTE: will take semaphore
+                disconnectToStopAllSensors();
                 return;
             }
 
+            await getDeviceSemaphore(localName).take();
+
+            if (! sensorEnabled) {
+                return;
+            }
+            
             try {
                 let device = await connectDevice(localName);
-
-                if (! sensorEnabled) {
-                    disconnectToStopAllSensors();
-                    return;
-                }
 
                 if (! device.services || ! device.services[service]) {
                     const errmsg = 'invalid service: ' + localName + '/' + service;
@@ -889,10 +933,8 @@ module.exports = function(RED) {
                     return;
                 }
 
-                await requestSemaphore.take();
-
                 if (! sensorEnabled) {
-                    requestSemaphore.leave();
+                    getDeviceSemaphore(localName).leave();
                     disconnectToStopAllSensors();
                     return;
                 }
@@ -916,7 +958,7 @@ module.exports = function(RED) {
 
                     setRestartTimer(service);
                 } finally {
-                    requestSemaphore.leave();
+                    getDeviceSemaphore(localName).leave();
                 }
             } catch(error) {
                 node.log('failed to connect' + postfixMsg);
@@ -935,17 +977,18 @@ module.exports = function(RED) {
                 if ((! sensorEnabled || 60 <= sensorInterval) &&
                     typeof(device.services[service].stop) === 'function') {
 
+                    await getDeviceSemaphore(localName).take();
+
                     try {
                         node.debug('stopping sensor' + postfixMsg);
 
-                        await requestSemaphore.take();
                         await device.services[service].stop();
 
                         node.debug('sensor stopped' + postfixMsg);
                     } catch(error) {
                         node.log('failed to stop sensor' + postfixMsg);
                     } finally {
-                        requestSemaphore.leave();
+                        getDeviceSemaphore(localName).leave();
                     }
                 }
 
@@ -968,6 +1011,8 @@ module.exports = function(RED) {
             if (! sensorEnabled) {
                 return;
             }
+
+            // NOTE: Taking semaphore not necessary. startSensor() will do this.
 
             try {
                 const device = await connectDevice(localName);
@@ -1008,17 +1053,22 @@ module.exports = function(RED) {
             }
         }
 
-        function disconnectToStopAllSensors() {
+        async function disconnectToStopAllSensors() {
             node.debug('Disconnecting to stop all sensors: ' + localName);
             node.status({fill:'yellow', shape:'dot', text:'disconnecting'});
                     
-            disconnectDevice(localName).then(() => {
+            await getDeviceSemaphore(localName).take();
+
+            try {
+                await disconnectDevice(localName);
                 // onDisconnect will set this status. but set also here if already disconnected
                 node.status({fill:'grey', shape:'dot', text:'idle'});
-            }).catch((error) => {
+            } catch(error) {
                 node.warn('failed to disconnect: ' + localName + ': ' + error);
                 node.status({fill:'red', shape:'ring', text:'disconnect error'});
-            });
+            } finally {
+                getDeviceSemaphore(localName).leave();
+            }
         }
 
         function onNotify(name, service, data) {
@@ -1061,16 +1111,16 @@ module.exports = function(RED) {
         event.on('notify', onNotify);
         event.on('disconnect', onDisconnect);
 
-        node.on('input', (msg) => {
+        node.on('input', async (msg) => {
+            sensorEnabled = !!msg.payload;
+
+            // do not use msg.device because of possible connection management issue..
+            localName = config.device;
+            sensorInterval = (msg && typeof(msg.interval) === 'number')
+                ? msg.interval : config.interval || 0;
+            sensorServices = msg.services || config.services;
+
             try {
-                sensorEnabled = !!msg.payload;
-
-                // do not use msg.device because of possible connection management issue..
-                localName = config.device;
-                sensorInterval = (msg && typeof(msg.interval) === 'number')
-                    ? msg.interval : config.interval || 0;
-                sensorServices = msg.services || config.services;
-
                 if (! localName) {
                     node.error('no device name specified.');
                     node.status({fill:'red', shape:'ring', text:'no device name'});
@@ -1088,7 +1138,7 @@ module.exports = function(RED) {
             }
         });
 
-        node.on('close', (done) => {
+        node.on('close', async (done) => {
             sensorEnabled = false;
 
             function closed() {
@@ -1104,18 +1154,29 @@ module.exports = function(RED) {
             if (linkingDevices[localName] && linkingDevices[localName].connected) {
                 node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
 
-                disconnectDevice(localName).then(() => {
-                    closed();
-                }).catch((error) => {
+                try {
+                    await disconnectDevice(localName);
+                    node.status({fill:'grey', shape:'dot', text:'idle'});
+                } catch(error) {
                     node.warn('failed to disconnect: ' + localName + ':' + error);
+                    node.status({fill:'yellow', shape:'dot',text:'disconnect error'});
+                } finally {
+                    getDeviceSemaphore(localName).leave();
                     closed();
-                });
+                }
             } else {
+                node.status({fill:'grey', shape:'dot', text:'idle'});
                 closed();
             }
-
-            node.status({fill:'grey', shape:'dot', text:'idle'});
         });
+
+        if (config.autostart) {
+            setTimeout(() => {
+                if (sensorEnabled) {
+                    node.emit('input', {payload: true});
+                }
+            }, AUTOSTART_INTERVAL);
+        }
     }
 
     RED.nodes.registerType('linking-sensor',LinkingSensorNode);
@@ -1156,7 +1217,7 @@ module.exports = function(RED) {
             if (scanning || ! forceScan) {
                 sendResponse();
             } else {
-                getDevice('dummy', 10).then(sendResponse).catch((error) => {
+                discoverDevice('dummy', 10).then(sendResponse).catch((error) => {
                     if (error.message.startsWith('time')) {
                         sendResponse();
                     } else {
