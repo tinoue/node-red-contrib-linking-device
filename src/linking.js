@@ -69,6 +69,8 @@ class PromiseSemaphore {
     }
 }
 
+
+
 module.exports = function(RED) {
     const logger = console;
 
@@ -87,7 +89,6 @@ module.exports = function(RED) {
     const connectSemaphore = new PromiseSemaphore(1);
 
     let linkingDevices = {};    // key: localName, value: device object
-    let deviceServices = {};    // key: localName, value: services
     let deviceSemaphores = {};  // key; localname, value; semaphore to request to device
 
     ////////////////////////////////////////////////////////////////
@@ -172,6 +173,7 @@ module.exports = function(RED) {
     function onNobleDiscover(peripheral) {
         const ad = peripheral.advertisement;
         if (!ad.localName) {
+            // Advertisement from device which hasn't responded to scan request
             return;
         }
 
@@ -179,7 +181,13 @@ module.exports = function(RED) {
 
         const advertisement = LinkingAdvertising.parse(peripheral);
         if (advertisement) {
-            let device = linkingDevices[advertisement.localName];
+            const localName = advertisement.localName;
+            let device = linkingDevices[localName];
+
+            if (device && device.advertisement.address != advertisement.address) {
+                logger.log('Address changed: ' + localName);
+                device = null; // Create new LinkingDevice object
+            }
 
             if (! device) {
                 device = new LinkingDevice(linking.noble, peripheral);
@@ -189,8 +197,8 @@ module.exports = function(RED) {
                     return;
                 }
 
-                logger.log(TAG + 'found device: ' + advertisement.localName);
-                linkingDevices[advertisement.localName] = device;
+                logger.log(TAG + 'found device: ' + localName);
+                linkingDevices[localName] = device;
             }
 
             const deviceNum =  + Object.keys(linkingDevices).length;
@@ -200,7 +208,7 @@ module.exports = function(RED) {
             logger.warn(TAG + 'Invalid advertisement object');
             return;
         }
-    } // onNobleDiscover()
+    }
 
     function onNobleScanStart() {
         scanning = true;
@@ -481,7 +489,7 @@ module.exports = function(RED) {
             }
 
             try {
-                node.debug('linking-scanner closing.');
+                // node.debug('linking-scanner closing.');
 
                 stopScanDurationTimer();
                 stopScanRetryTimer();
@@ -635,7 +643,6 @@ module.exports = function(RED) {
             await device.connect();
             logger.debug(TAG + 'device connected: ' + localName);
 
-            deviceServices[localName] = device.services;
             clearTimeout(connectTimerId);
 
             device.ondisconnect = () => {
@@ -757,9 +764,8 @@ module.exports = function(RED) {
                     return;
                 }
 
-                if (linkingDevices[localName] &&
-                    deviceServices[localName] && (! deviceServices[localName].led)) {
-
+                const device = linkingDevices[localName];
+                if (device && device.services && (! device.services.led)) {
                     node.warn('No led service: ' + localName);
                     return;
                 }
@@ -837,7 +843,7 @@ module.exports = function(RED) {
                 }
 
                 ledEnabled = true;
-                node.debug('linking-led closing.');
+                // node.debug('linking-led closing.');
 
                 event.removeListener('disconnect', onDisconnect);
 
@@ -935,16 +941,17 @@ module.exports = function(RED) {
 
                 if (! sensorEnabled) {
                     getDeviceSemaphore(localName).leave();
+
                     disconnectToStopAllSensors();
                     return;
                 }
 
-                node.debug('starting sensor' + postfixMsg);
+                // node.debug('starting sensor' + postfixMsg);
 
                 try {
                     const result = await device.services[service].start();
 
-                    node.debug('sensor started' + postfixMsg);
+                    // node.debug('sensor started' + postfixMsg);
 
                     if (result.resultCode === 0) {
                         node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
@@ -980,11 +987,11 @@ module.exports = function(RED) {
                     await getDeviceSemaphore(localName).take();
 
                     try {
-                        node.debug('stopping sensor' + postfixMsg);
+                        // node.debug('stopping sensor' + postfixMsg);
 
                         await device.services[service].stop();
 
-                        node.debug('sensor stopped' + postfixMsg);
+                        // node.debug('sensor stopped' + postfixMsg);
                     } catch(error) {
                         node.log('failed to stop sensor' + postfixMsg);
                     } finally {
@@ -1054,6 +1061,11 @@ module.exports = function(RED) {
         }
 
         async function disconnectToStopAllSensors() {
+            if (sensorEnabled) {
+                node.info('disconnectToStopAllSensors(): Unexpected condition. skip');
+                return;
+            }
+
             node.debug('Disconnecting to stop all sensors: ' + localName);
             node.status({fill:'yellow', shape:'dot', text:'disconnecting'});
                     
@@ -1130,6 +1142,7 @@ module.exports = function(RED) {
                 if (sensorEnabled) {
                     startAllSensors();
                 } else {
+                    // NOTE: will take semaphore
                     disconnectToStopAllSensors();
                 }
             } catch(error) {
@@ -1146,7 +1159,7 @@ module.exports = function(RED) {
                 done();
             }
 
-            node.debug('linking-sensor closing.');
+            // node.debug('linking-sensor closing.');
 
             event.removeListener('disconnect', onDisconnect);
             event.removeListener('notify', onNotify);
@@ -1197,12 +1210,11 @@ module.exports = function(RED) {
                 if (Object.keys(linkingDevices).length > 0) {
                     // data: array of {text:<localName>, value:<address>}
                     const response = Object.keys(linkingDevices).map((localName) => {
-                        const advertisement = linkingDevices[localName].advertisement;
+                        const peripheral = linkingDevices[localName]._peripheral;
 
                         return {
                             name: localName,
-                            rssi: advertisement.rssi,
-                            distance: Math.round(advertisement.distance * 10) / 10
+                            rssi: peripheral.rssi
                         };
                     });
                     
@@ -1270,7 +1282,7 @@ module.exports = function(RED) {
                 return;
             }
 
-            const services = deviceServices[localName];
+            const services = linkingDevices[localName] && linkingDevices[localName].services;
 
             if (services) {
                 res.status(200).send(services);
@@ -1304,9 +1316,8 @@ module.exports = function(RED) {
                 return;
             }
 
-            if (linkingDevices[localName] &&
-                deviceServices[localName] && (! deviceServices[localName].led)) {
-
+            const device = linkingDevices[localName];
+            if (device && device.services && (! device.services.led)) {
                 logger.warn('linking-device/turnOnLed/ failed. no led service: ' + localName);
                 res.status(404).send('The device has no led service.');
                 return;
