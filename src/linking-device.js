@@ -603,12 +603,12 @@ module.exports = function(RED) {
         let connectTimerId;
         let leaveSemaphore;
 
-        logger.debug(TAG + 'Got request to connect to device: ' + localName);
-
         let device = linkingDevices[localName];
         if (device && device.connected) {
             return device;
         }
+
+        logger.debug(TAG + 'Request to connect with device: ' + localName);
 
         try {
             await connectSemaphore.take();
@@ -983,7 +983,7 @@ module.exports = function(RED) {
         async function stopSensor(service) {
             const postfixMsg = ': '+ localName + '/' + service;
             const device = linkingDevices[localName];
-            node.debug('stopSensor ' + localName + '/' + service);
+            node.debug('stopSensor : ' + localName + '/' + service);
 
             if (device && device.services && device.services[service]) {
                 if ((! sensorEnabled || 60 <= sensorInterval) &&

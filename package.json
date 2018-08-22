@@ -10,7 +10,7 @@
   },
   "node-red": {
     "nodes": {
-      "linking-device": "src/linking.js"
+      "linking-device": "src/linking-device.js"
     }
   },
   "license": "Apache-2.0",
