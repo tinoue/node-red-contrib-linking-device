@@ -1,0 +1,1039 @@
+<!-- Linking Scanner -->
+
+<script type="text/x-red" data-template-name="linking-scanner">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+	    <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-autostart" style="width: 70%;"> Start automatically at startup</label>
+    </div>
+    <!--
+    <div class="form-row">
+        <label for="node-input-duration"><i class="icon-tag"></i> Duration</label>
+	    <input type="text" id="node-input-duration" placeholder="Duration in seconds (&gt;= 5sec or 0 for forever)">
+    </div>
+    -->
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
+	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
+    </div>
+    <div class="form-row">
+        <i class="fa fa-bluetooth-b"></i><span> Devices found</span>
+        <!--a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a-->
+
+	    <ol id="node-input-devices" style="min-height:200px; min-diwdth: 450px; margin-top: 0.3em;"></ol>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="linking-scanner">
+    <p>A node which wraps <a href="https://github.com/futomi/node-linking">node-linking</a> to scan beacon signal from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. The beacon signal would also have sensor information. NOTE: Only one node can be deployed.</p>
+    <h3>Inputs</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stop scanning.</dd> 
+        </dd>
+        <dt>autostart <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.autostart</code> is true, this node starts to scan automatically at startup.
+        </dd>
+        <!--
+        <dt>duration <span class="property-type">number</span></dt>
+        <dd>
+          <code>msg.duration</code> specifies number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node tries to keep scanning forever.
+        </dd>
+        -->
+        <dt>interval <span class="property-type">number</span></dt>
+        <dd>
+          <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get so many beacon data.
+        </dd>
+      </dl>
+    </h3>
+    <h3>Output</h3>
+        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
+        <dl>
+          <dt>Temperature</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_temperature'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: 33.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Humidity</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_humidity'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "humidity",
+    data: 50.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Air pressure</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_tha012345_temperature'
+  payload: {
+    device: "Sizuku_tha012345",
+    service: "pressure",
+    data: 1013,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Button</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Pichiru_012345_button'
+  payload: {
+    device: "Pochiru_th012345",
+    service: "button",
+    data: {
+        buttonName: 'SingleClick',
+        buttonId: 2
+    },
+  }
+}</pre>
+         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Illuminance</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_lux012345_illuminance'
+  payload: {
+    device: "SizukuLux_th012345",
+    service: "illuminance",
+    data: 242,
+  }
+}</pre>
+         </dd>
+        </dl>    
+      </dl>
+      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
+    </h3>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('linking-scanner',{
+        category: 'Linking device',
+        color: '#C0DEED',
+        defaults: {
+            name: {
+                value:""
+            },
+            autostart: {
+                value: true
+            },
+            duration: {
+                value: "",
+                validate: function(v) {
+                    return v >= 5 || v == 0;
+                }
+            },
+            interval: {
+                value: "",
+                validate: function(v) {
+                    return v === undefined || v >= 0;
+                }
+            }
+        },
+        inputs:1,
+        outputs:1,
+        icon: "bluetooth.png",
+        label: function() {
+            return this.name||"linking-scanner";
+        },
+        timerId: undefined,
+        oneditprepare: function() {
+            // callback(error)
+            var getDevices = function(callback) {
+                const url = 'linking-device/getDevices';
+                
+                // devices: [{name:"Tukeru.."},{}...]
+                $.getJSON(url, function(devices) {
+                    // console.log('Got ' + devices.length + ' devices');
+
+                    $('#node-input-devices').empty().editableList({
+                        addItem: function(container, i, opt) {
+                            var device = opt;
+
+                            var item = $('<div/>').appendTo(container);
+                                
+                            var name = $('<span/>', {
+                                style: 'margin-left: 1em;'
+                            }).text(device.name).appendTo(item);
+                                
+                            var rssiText = (device.sinceLastBeacon <= 60) ? 'RSSI: ' + device.rssi + ' dBm' : 'No beacon';
+                            var rssi = $('<span/>', {
+                                style: 'float: right; margin-right: 0.5em;'
+                            }).text(rssiText).appendTo(item);
+                        },
+                        sortable: false,
+                        removable: false,
+                        addButton: false
+                    });
+                                                          
+                    for (i in devices) {
+                        $('#node-input-devices').editableList('addItem', devices[i]);
+                    }
+                    
+                    callback && callback();
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to scan device: ' + errorThrown;
+                    console.warn(message);
+                    // window.alert(message);
+                    
+                    callback && callback(message);
+                });
+            };
+        
+            console.log('linking-scanner:oneditprepare()');
+
+            function getDeviceWithTimer() {
+                timerId = setTimeout(function() {
+                    getDevices(function() {
+                        getDeviceWithTimer();
+                    });
+                }, 5 * 1000);
+            }
+            
+            getDevices(function() {
+                getDeviceWithTimer();
+            });
+        },
+        oneditsave: function() {
+            /*
+            var node = this;
+
+            node.duration = $('#node-input-duraion').val();
+            node.interval = $('#node-input-interval').val();
+            */
+
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        },
+        oneditcancel: function() {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        }
+    });
+</script>
+
+<!-- Linking LED -->
+
+<script type="text/x-red" data-template-name="linking-led">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-device"><i class="fa fa-bluetooth"></i> Device</label>
+        <select id="node-input-device">
+        </select>
+        <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+    </div>
+    <div class="form-row">
+        <label for="node-input-color"><i class="icon-tag"></i> Color</label>
+	    <select id="node-input-color">
+	    </select>
+        <a id="node-input-color-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+    </div>
+    <div class="form-row">
+        <label for="node-input-pattern"><i class="icon-tag"></i> Pattern</label>
+	    <select id="node-input-pattern">
+	    </select>
+        <a id="node-input-pattern-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+	    <input type="checkbox" id="node-input-keepconnection" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-keepconnection" style="width: 70%;"> Keep connection</label>
+	    </select>
+    </div>
+    <div class="form-row">
+        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i>Turn on LED for test</a>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="linking-led">
+    <p>A node to control Linking LED device.</p>
+    <h3>Inputs</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">boolean</span></dt>
+        <dd>
+          <code>msg.payload</code> should be set to turn on/off LED.</dd> 
+        </dd>
+        <dt>color <span class="property-type">string</span> (Optional)</dt>
+        <dd>
+          <code>msg.color</code> specifies LED color like 'Red'. Available colors are depend on device.
+        </dd>
+        <dt>pattern <span class="property-type">string</span> (Optional)</dt>
+        <dd>
+          <code>msg.pattern</code> specifies LED pattern like 'Pattern1'. Available patterns are depend on device.
+        </dd>
+        <dt>keepConnection <span class="property-type">boolean</span> (Optional)</dt>
+        <dd>
+        <code>msg.keepConnection</code> specifies not to disconnect the device after LED on/off operation. NOTE: This disables beacon data from this device.
+        </dd>
+      </dl>
+    </h3>
+</script>
+
+<script type="text/javascript">
+    var disconnectDevice = function(device) {
+        if (device) {
+            const url = 'linking-device/disconnect/' + device;
+            $.ajax(url).done(function() {
+                console.log('disconnected: ' + device);
+            }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                const message = 'Failed to disconnect device ' + device + ': ' + errorThrown;
+                console.warn(message);
+                window.alert(message);
+            });
+        }
+    };
+
+    RED.nodes.registerType('linking-led',{
+        category: 'Linking device',
+        color: '#C0DEED',
+        defaults: {
+            name: {value:""},
+            device: {
+                value:"",
+                required: true
+            },
+            color: {value:""},
+            pattern: {value:""},
+            keepConection: {value:false}
+        },
+        inputs:1,
+        outputs:0,
+        align: 'right',
+        icon: "light.png",
+        label: function() {
+            return this.name||this.device||"linking-led";
+        },
+        oneditprepare: function() {
+            var node = this;
+            console.log('linking-led:oneditprepare()');
+
+            var setDeviceList = function(device, selected) {
+                if ($('#node-input-device option[value="' + device + '"]').length === 0) {
+                    $('<option/>', {
+                        selected: !!selected,
+                        value: device,
+                        text: device
+                    }).appendTo('#node-input-device');
+                } else {
+                    if (selected) {
+                        $('#node-input-device option[value="' + device + '"]').prop('selected', true);
+                    }
+                }
+            };
+
+            var setColorList = function(color, selected) {
+                if ($('#node-input-color option[value="' + color + '"]').length === 0) {
+                    const option = $('<option/>', {
+                        value: color,
+                        text: color
+                    }).appendTo('#node-input-color');
+
+                    if (selected) {
+                        option.prop('selected', true);
+                    }
+                }
+            };
+
+            var setPatternList = function(pattern, selected) {
+                if ($('#node-input-pattern option[value="' + pattern + '"]').length === 0) {
+                    const option = $('<option/>', {
+                        value: pattern,
+                        text: pattern
+                    }).appendTo('#node-input-pattern');
+
+                    if (selected) {
+                        option.prop('selected', true);
+                    }
+                }
+            };
+
+            // callback(error)
+            var getDevices = function(forceScan, callback) {
+                const url = 'linking-device/getDevices' + (forceScan ? '?forceScan=true' : '');
+
+                // devices: [{name:"Tukeru.."},{}...]
+                $.getJSON(url, function(devices) {
+                    console.log('Got ' + devices.length + ' devices');
+                    // $('#node-input-device').find('option').remove().end();
+                    for (var i in devices) {
+                        setDeviceList(devices[i].name);
+                    }
+
+                    if (node.device) {
+                        $('#node-input-device').val(node.device);
+                    }
+
+                    callback && callback();
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to scan device: ' + errorThrown;
+                    console.warn(message);
+                    window.alert(message);
+
+                    callback && callback(message);
+                });
+            };
+
+            var getLedService = function(callback) {
+                var device = $('#node-input-device option:selected').text();
+
+                if (device) {
+                    $('#node-input-color').prop('disabled', true);
+                    $('#node-input-pattern').prop('disabled', true);
+
+                    $('#node-input-color-refresh > i').addClass('fa-spin');
+                    $('#node-input-pattern-refresh > i').addClass('fa-spin');
+
+                    const url = 'linking-device/getServices/' + device;
+                    $.getJSON(url, function(services) {
+                        // console.dir(services);
+
+                        if (services && services.led) {
+                            // $('#node-input-color').find('option').remove().end();
+                            // $('#node-input-pattern').find('option').remove().end();
+
+                            if (services.led.colors) {
+                                $('#node-input-color').prop('disabled', false);
+
+                                for (var color in services.led.colors) {
+                                    // Skip OFF color
+                                    if (color.toLowerCase() !== 'off') {
+                                        setColorList(color);
+                                    }
+                                }
+
+                                if (node.color) {
+                                    $('#node-input-color').val(node.color);
+                                }
+                            }
+
+                            if (services.led.patterns) {
+                                $('#node-input-pattern').prop('disabled', false);
+
+                                for (var pattern in services.led.patterns) {
+                                    // Skip OFF pattern
+                                    if (pattern.toLowerCase() !== 'off') {
+                                        setPatternList(pattern);
+                                    }
+                                }
+
+                                if (node.pattern) {
+                                    $('#node-input-pattern').val(node.pattern);
+                                }
+                            }
+                        }
+
+                        callback && callback();
+                    }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                        const message = 'Failed to get device servicer: ' + errorThrown;
+                        console.warn(message);
+                        window.alert(message);
+                        callback && callback();
+                    }).always(function() {
+                        $('#node-input-color').prop('disabled', false);
+                        $('#node-input-pattern').prop('disabled', false);
+
+                        $('#node-input-color-refresh > i').removeClass('fa-spin');
+                        $('#node-input-pattern-refresh > i').removeClass('fa-spin');
+                    });
+                }
+            };
+
+            var refreshDevice = function(forceScan, callback) {
+                $('#node-input-device-refresh').addClass('disabled');
+                $('#node-input-device-refresh > i').addClass('fa-spin');
+
+                getDevices(forceScan, function(error) {
+                    $('#node-input-device-refresh').removeClass('disabled');
+                    $('#node-input-device-refresh > i').removeClass('fa-spin');
+                    callback && callback(error);
+                });
+            };
+
+            $('#node-input-device-refresh').click(function() {
+                console.log('click(): device refresh');
+                refreshDevice(true);
+            });
+
+            $('#node-input-color-refresh').click(function() {
+                console.log('click(): color/pattern refresh');
+                getLedService();
+            });
+            $('#node-input-pattern-refresh').click(function() {
+                console.log('click(): color/pattern refresh');
+                getLedService();
+            });
+
+            $('#node-input-led-test').click(function() {
+                const color = $('#node-input-color option:selected').text();
+                const pattern = $('#node-input-pattern option:selected').text();
+
+                $('#node-input-led-test').addClass('disabled');
+
+                const url = 'linking-device/turnOnLed/' + node.device;
+                const params = {
+                    color: color,
+                    pattern: pattern
+                };
+                $.get(url, params, function() {
+                    // do nothing
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to turn on LED: ' + errorThrown;
+                    console.warn(message);
+                    window.alert(message);
+                }).always(function() {
+                    $('#node-input-led-test').removeClass('disabled');
+                });
+            });
+
+            $('#node-input-device').change(function() {
+                var device = $('#node-input-device option:selected').text();
+
+                // console.log('change(): ' + device);
+
+                if (device) {
+                    $('#node-input-color').find('option').remove().end();
+                    $('#node-input-pattern').find('option').remove().end();
+
+                    if (node.device != device) {
+                        disconnectDevice(node.device);
+
+                        getLedService();
+                    }
+
+                    node.device = device;
+                } else {
+                    $('#node-input-color').prop('disabled', true);
+                    $('#node-input-pattern').prop('disabled', true);
+                }
+            });
+
+            if (node.device) {
+                getDevices();
+
+                setDeviceList(node.device, true);
+
+                if (node.color) {
+                    setColorList(node.color, true);
+                }
+
+                if (node.pattern) {
+                    setPatternList(node.pattern, true);
+                }
+            } else {
+                getDevices();
+            }
+        },
+        oneditsave: function() {
+            var node = this;
+
+            node.color = $('#node-input-color option:selected').text();
+            node.pattern = $('#node-input-color option:selected').text();
+            // node.keepConection = $().text('#node-input-keepconnection').prop('checked');;
+
+            disconnectDevice(node.device);
+        },
+        oneditcancel: function() {
+            var node = this;
+
+            disconnectDevice(node.device);
+        }
+    });
+</script>
+
+<!-- Linking Sensor -->
+
+<script type="text/x-red" data-template-name="linking-sensor">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-device"><i class="fa fa-bluetooth"></i> Device</label>
+        <select id="node-input-device">
+        </select>
+        <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+    </div>
+    <div class="form-row">
+        <label>&nbsp;</label>
+	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-autostart" style="width: 70%;"> Start automatically at startup</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
+	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
+    </div>
+    <div class="form-row" style="margin-bottom:0;">
+        <label for="node-input-services"><i class="fa fa-random"></i> Sensor</label>
+        <label for="node-input-sensor" style="width:200px;">
+            <input type="checkbox" id="node-input-temperature" style="display:inline-blok; width:22px; vertical-align:baseline;">
+            <span>Temperature</span>
+        </label>
+    </div>
+    <div id="node-input-sensors">
+        <div class="form-row" style="margin-bottom:0;">
+            <label>
+                <a id="node-input-sensor-refresh" class="btn"><i class="fa fa-refresh"></i></a>
+            </label>  
+            <label for="node-input-humidity" style="width:200px;">
+                <input type="checkbox" id="node-input-humidity" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Humidity</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-pressure" style="width:200px;">
+                <input type="checkbox" id="node-input-pressure" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Air Pressure</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-battery" style="width:200px;">
+                <input type="checkbox" id="node-input-battery" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Battery</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-button" style="width:200px;">
+                <input type="checkbox" id="node-input-button" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Button</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-gyroscope" style="width:200px;">
+                <input type="checkbox" id="node-input-gyroscope" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Gyroscope</span>
+            </label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+            <label></label>  
+            <label for="node-input-accelerometer" style="width:200px;">
+                <input type="checkbox" id="node-input-accelerometer" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Accelerometer</span>
+            </label>
+        </div>
+        <div class="form-row">
+            <label></label>  
+            <label for="node-input-orientation" style="width:200px;">
+                <input type="checkbox" id="node-input-orientation" style="display:inline-blok; width:22px; vertical-align:baseline;">
+                <span>Orientation</span>
+            </label>
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i>Turn on LED of this device</a>
+    </div>
+</script>
+a
+
+<script type="text/x-red" data-help-name="linking-sensor">
+    <p>A node to read data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.</p>
+    <h3>Inputs</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node will be disconnected.</dd> 
+        </dd>
+        <dt>services <span class="property-type">Object</span></dt>
+        <dd>
+          <code>msg.services</code> specifies services to read from Linking device which looks likc:
+<pre>
+    {
+        temperature: true,
+        humidity: true
+    }
+</pre>
+        </dd>
+        <dt>interval <span class="property-type">number</span></dt>
+        <dd>
+          <code>msg.interval</code> specifies interval to read data in seconds.
+        </dd>
+        <dt>autostart <span class="property-type">boolean</span></dt>
+        <dd>
+          If <code>msg.autostart</code> is true, this node starts automatically at 30 seconds after startup.
+        </dd>
+      </dl>
+    </h3>
+    <h3>Output</h3>
+        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
+        <dl>
+          <dt>Temperature</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_temperature'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: 33.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Humidity</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_humidity'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "humidity",
+    data: 50.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Air pressure</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_tha012345_temperature'
+  payload: {
+    device: "Sizuku_tha012345",
+    service: "pressure",
+    data: 1013,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Battery</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_battery'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: {
+        chargeRequired: false,
+        chargeLeval 0
+    }
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Button</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Pichiru_012345_button'
+  payload: {
+    device: "Pochiru_th012345",
+    service: "button",
+    data: {
+        buttonName: 'SingleClick',
+        buttonId: 2
+    },
+  }
+}</pre>
+         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Gyroscope</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_gyroscope'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "gyroscope",
+    data: {x: 0.7012194991111755, y: 0.9756097793579102, z: -0.12195122241973877}
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Accelerometer</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_accelerometer'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "accelerometer",
+    data: {x: -0.007000000216066837, y: -0.052000001072883606, z: 1.0010000467300415}
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>Orientation</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_orientation'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "orientation",
+      data: {x: 1.128000020980835, y: 0.2849999964237213, z: 1.559000015258789}
+  }
+}</pre>
+         </dd>
+        </dl>    
+      </dl>
+    </h3>
+</script>
+
+<script type="text/javascript">
+    const servicesList = [
+        'led', 'vibration', 'button','gyroscope', 'accelerometer', 'orientation',
+        'battery', 'temperature', 'humidity', 'pressure'
+    ];        
+
+    var disconnectDevice = function(device) {
+        if (device) {
+            const url = 'linking-device/disconnect/' + device;
+            $.ajax(url).done(function() {
+                console.log('disconnected: ' + device);
+            }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                const message = 'Failed to disconnect device ' + device + ': ' + errorThrown;
+                console.warn(message);
+                window.alert(message);
+            });
+        }
+    };
+
+    RED.nodes.registerType('linking-sensor',{
+        category: 'Linking device',
+        color: '#C0DEED',
+        defaults: {
+            name: {value:""},
+            device: {
+                value:"",
+                required: true
+            },
+            interval: {
+                value: "",
+                validate: function(v) {
+                    return v === undefined || v >= 0;
+                }
+            },
+            autostart: {
+                value: true
+            },
+            services: {value:""} // {"humidity":(true|false|null), ..}
+        },
+        inputs:1,
+        outputs:1,
+        align: 'left',
+        icon: "serial.png",
+        label: function() {
+            return this.name||this.device||"linking-sensor";
+        },
+        oneditprepare: function() {
+            var node = this;
+            console.log('linking-sensor:oneditprepare()');
+
+            var setDeviceList = function(device, selected) {
+                if ($('#node-input-device option[value="' + device + '"]').length === 0) {
+                    $('<option/>', {
+                        selected: !!selected,
+                        value: device,
+                        text: device
+                    }).appendTo('#node-input-device');
+                } else {
+                    if (selected) {
+                        $('#node-input-device option[value="' + device + '"]').prop('selected', true);
+                    }
+                }
+            };
+
+            var setService = function(service, checked) {
+                $('#node-input-' + service).prop('checked', checked);
+                if (node.services == null || node.services[service] != null) {
+                    $('#node-input-' + service).prop('disabled', false);
+                } else {
+                    $('#node-input-' + service).prop('disabled', true);
+                }
+            };
+
+            // callback(error)
+            var getDevices = function(forceScan, callback) {
+                const url = 'linking-device/getDevices' + (forceScan ? '?forceScan=true' : '');
+
+                // devices: [{name:"Tukeru.."},{}...]
+                $.getJSON(url, function(devices) {
+                    console.log('Got ' + devices.length + ' devices');
+
+                    for (var i in devices) {
+                        setDeviceList(devices[i].name);
+                    }
+
+                    if (node.device) {
+                        $('#node-input-device').val(node.device);
+                    }
+
+                    callback && callback();
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to scan device: ' + errorThrown;
+                    console.warn(message);
+                    window.alert(message);
+
+                    callback && callback(message);
+                });
+            };
+
+            var getSensorServices = function(callback) {
+                var device = $('#node-input-device option:selected').text();
+
+                if (device) {
+                    $('#node-input-sensor-refresh').addClass('disabled');
+                    $('#node-input-sensor-refresh > i').addClass('fa-spin');
+
+                    const url = 'linking-device/getServices/' + device;
+                    $.getJSON(url, function(services) {
+                        console.dir(services);
+
+                        if (services) {
+                            for(let i in servicesList) {
+                                const service = servicesList[i];
+                                if (services[service] != null) {
+                                    // battery is not recommended. seems to be uselress
+                                    services[service] = (service !== 'battery');
+                                }
+                                setService(service, services[service]);
+                            }
+                        }
+
+                        callback && callback();
+                    }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                        const message = 'Failed to get device servicer: ' + errorThrown;
+                        console.warn(message);
+                        window.alert(message);
+                        callback && callback();
+                    }).always(function() {
+                        $('#node-input-sensor-refresh > i').removeClass('fa-spin');
+                        $('#node-input-sensor-refresh').removeClass('disabled');
+                    });
+                }
+            };
+
+            var refreshDevice = function(forceScan, callback) {
+                $('#node-input-device-refresh').addClass('disabled');
+                $('#node-input-device-refresh > i').addClass('fa-spin');
+
+                getDevices(forceScan, function(error) {
+                    $('#node-input-device-refresh').removeClass('disabled');
+                    $('#node-input-device-refresh > i').removeClass('fa-spin');
+                    callback && callback(error);
+                });
+            };
+
+            $('#node-input-device-refresh').click(function() {
+                console.log('click(): device refresh');
+                refreshDevice(true);
+            });
+
+            $('#node-input-sensor-refresh').click(function() {
+                console.log('click(): sensor type refresh');
+                getSensorServices();
+            });
+
+            $('#node-input-led-test').click(function() {
+                $('#node-input-led-test').addClass('disabled');
+
+                const url = 'linking-device/turnOnLed/' + node.device;
+                $.get(url, function() {
+                    // do nothing
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to turn on LED: ' + errorThrown;
+                    console.warn(message);
+                    window.alert(message);
+                }).always(function() {
+                    $('#node-input-led-test').removeClass('disabled');
+                });
+            });
+
+            $('#node-input-device').change(function() {
+                var device = $('#node-input-device option:selected').text();
+
+                // console.log('change(): ' + device);
+
+                if (device) {
+                    if (node.device !== device) {
+                        disconnectDevice(node.device);
+
+                        node.services = null;
+
+                        for(let i in servicesList) {
+                            setService(servicesList[i], false);
+                        }
+
+                        getSensorServices();
+                    }
+
+                    node.device = device;
+                }
+            });
+
+            if (node.device) {
+                getDevices();
+
+                setDeviceList(node.device, true);
+
+                for(let i in servicesList) {
+                    const service = servicesList[i];
+                    setService(service, node.services ? node.services[service] : false);
+                }                    
+
+                if (! node.services) {
+                    getSensorServices();
+                }
+            } else {
+                refreshDevice(false);
+            }
+        },
+        oneditsave: function() {
+            var node = this;
+
+            node.interval = $('#node-input-interval').val();
+
+            for (let i in servicesList) {
+                const service = servicesList[i];
+                if (node.services[service] != null) {
+                    node.services[service] = $('#node-input-' + service).prop('checked');
+                }
+            }
+
+            disconnectDevice(node.device);
+        },
+        oneditcancel: function() {
+            var node = this;
+
+            disconnectDevice(node.device);
+        }
+    });
+</script>
