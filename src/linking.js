@@ -174,6 +174,7 @@ module.exports = function(RED) {
         const ad = peripheral.advertisement;
         if (!ad.localName) {
             // Advertisement from device which hasn't responded to scan request
+            logger.log('Advertisement from undiscovered device.');
             return;
         }
 
@@ -189,7 +190,11 @@ module.exports = function(RED) {
                 device = null; // Create new LinkingDevice object
             }
 
-            if (! device) {
+            if (device) {
+                // Update rssi and distance
+                device.advertisement.rssi = advertisement.rssi;
+                device.advertisement.distance = advertisement.distance;
+            } else {
                 device = new LinkingDevice(linking.noble, peripheral);
 
                 if (! device) {
@@ -1204,7 +1209,7 @@ module.exports = function(RED) {
         const forceScan = req.query.forceScan;
 
         try {
-            logger.log(TAG);
+            // logger.log(TAG);
 
             const sendResponse = () => {
                 if (Object.keys(linkingDevices).length > 0) {
@@ -1218,7 +1223,7 @@ module.exports = function(RED) {
                         };
                     });
                     
-                    logger.log(TAG + ' returns ' + response.length + ' devices.');
+                    // logger.log(TAG + ' returns ' + response.length + ' devices.');
                     res.status(200).send(response);
                 } else {
                     logger.log(TAG + ' no device found.');

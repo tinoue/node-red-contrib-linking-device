@@ -20,6 +20,12 @@
         <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
 	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
     </div>
+    <div class="form-row">
+        <i class="fa fa-bluetooth-b"></i><span> Devices found</span>
+        <!--a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a-->
+
+	    <ol id="node-input-devices" style="min-height:200px; min-diwdth: 450px; margin-top: 0.3em;"></ol>
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="linking-scanner">
@@ -157,8 +163,62 @@
         label: function() {
             return this.name||"linking-scanner";
         },
+        timerId: undefined,
         oneditprepare: function() {
+            // callback(error)
+            var getDevices = function(callback) {
+                const url = 'linking-device/getDevices';
+                
+                // devices: [{name:"Tukeru.."},{}...]
+                $.getJSON(url, function(devices) {
+                    // console.log('Got ' + devices.length + ' devices');
+
+                    $('#node-input-devices').empty().editableList({
+                        addItem: function(container, i, opt) {
+                            var device = opt;
+
+                            var item = $('<div/>').appendTo(container);
+                                
+                            var name = $('<span/>', {
+                                style: 'margin-left: 1em;'
+                            }).text(device.name).appendTo(item);
+                                
+                            var rssi = $('<span/>', {
+                                style: 'float: right; margin-right: 0.5em;'
+                            }).text('RSSI: ' + device.rssi + ' dBm').appendTo(item);
+                        },
+                        sortable: false,
+                        removable: false,
+                        addButton: false
+                    });
+                                                          
+                    for (i in devices) {
+                        $('#node-input-devices').editableList('addItem', devices[i]);
+                    }
+                    
+                    callback && callback();
+                }).fail(function(_jqXHR, _textStatus, errorThrown) {
+                    const message = 'Failed to scan device: ' + errorThrown;
+                    console.warn(message);
+                    // window.alert(message);
+                    
+                    callback && callback(message);
+                });
+            };
+        
             console.log('linking-scanner:oneditprepare()');
+
+            function getDeviceWithTimer() {
+                timerId = setTimeout(function() {
+                    getDevices(function() {
+                        getDeviceWithTimer();
+                    });
+                }, 3 * 1000);
+            }
+            
+            getDevices(function() {
+                getDeviceWithTimer();
+            });
         },
         oneditsave: function() {
             /*
@@ -167,6 +227,15 @@
             node.duration = $('#node-input-duraion').val();
             node.interval = $('#node-input-interval').val();
             */
+
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        },
+        oneditcancel: function() {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
         }
     });
 </script>
@@ -516,13 +585,13 @@
         <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
-        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
-	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
-    </div>
-    <div class="form-row">
         <label>&nbsp;</label>
 	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
         <label for="node-input-autostart" style="width: 70%;"> Start automatically at startup</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
+	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
     </div>
     <div class="form-row" style="margin-bottom:0;">
         <label for="node-input-services"><i class="fa fa-random"></i> Sensor</label>
