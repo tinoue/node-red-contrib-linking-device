@@ -981,6 +981,7 @@ module.exports = function(RED) {
                 node.log('failed to connect' + postfixMsg);
                 node.status({fill:'red', shape:'ring', text:'connect error'});
 
+                getDeviceSemaphore(localName).leave();
                 setRestartTimer(service);
             }
         }
