@@ -183,9 +183,10 @@
                                 style: 'margin-left: 1em;'
                             }).text(device.name).appendTo(item);
                                 
+                            var rssiText = (device.sinceLastBeacon <= 60) ? 'RSSI: ' + device.rssi + ' dBm' : 'No beacon';
                             var rssi = $('<span/>', {
                                 style: 'float: right; margin-right: 0.5em;'
-                            }).text('RSSI: ' + device.rssi + ' dBm').appendTo(item);
+                            }).text(rssiText).appendTo(item);
                         },
                         sortable: false,
                         removable: false,
@@ -213,7 +214,7 @@
                     getDevices(function() {
                         getDeviceWithTimer();
                     });
-                }, 3 * 1000);
+                }, 5 * 1000);
             }
             
             getDevices(function() {

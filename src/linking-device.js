@@ -1,3 +1,5 @@
+const os = require('os');
+
 const EventEmitter = require('events').EventEmitter;
 const Semaphore = require('semaphore');
 const RateLimiter = require('limiter').RateLimiter;
@@ -89,7 +91,8 @@ module.exports = function(RED) {
     const connectSemaphore = new PromiseSemaphore(1);
 
     let linkingDevices = {};    // key: localName, value: device object
-    let deviceSemaphores = {};  // key; localname, value; semaphore to request to device
+    let deviceSemaphores = {};  // key; localName, value; semaphore to request to device
+    let lastBeaconTimes = {};   // key: localName, value: time(os.uptime) of last beacon.
 
     ////////////////////////////////////////////////////////////////
     // Common function for scanning (discovery)
@@ -184,6 +187,8 @@ module.exports = function(RED) {
         if (advertisement) {
             const localName = advertisement.localName;
             let device = linkingDevices[localName];
+
+            lastBeaconTimes[localName] = os.uptime();
 
             if (device && device.advertisement.address != advertisement.address) {
                 logger.log('Address changed: ' + localName);
@@ -1216,10 +1221,12 @@ module.exports = function(RED) {
                     // data: array of {text:<localName>, value:<address>}
                     const response = Object.keys(linkingDevices).map((localName) => {
                         const peripheral = linkingDevices[localName]._peripheral;
+                        const sinceLastBeacon = os.uptime() - lastBeaconTimes[localName];
 
                         return {
                             name: localName,
-                            rssi: peripheral.rssi
+                            rssi: peripheral.rssi,
+                            sinceLastBeacon: sinceLastBeacon
                         };
                     });
                     
