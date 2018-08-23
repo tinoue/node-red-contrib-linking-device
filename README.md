@@ -67,12 +67,18 @@ node-red-stop && node-red-start
 
 1.After installation you can see theree new nodes in `Linking device` category of pallete.
 
+<img width="178" src="https://qiita-image-store.s3.amazonaws.com/0/12960/9abc86fd-80d6-997c-7f06-08da62847f92.png">
+
 2.Drag-and-Drop the `linking-scanner` node into workspace, then double-click it.
 
 - Check `Start automatically at startup`
 - Set `Interval` to 60 (seconds).
 
+<img width="500" src="https://qiita-image-store.s3.amazonaws.com/0/12960/ec7a0d07-a3cc-7445-2706-c3440d9788d4.png">
+
 3.Drag-and-Drop `debug` node then connect it with `linking-scanner`.
+
+<img width="414" src="https://qiita-image-store.s3.amazonaws.com/0/12960/cf7a3a3f-9075-3e3d-65e1-83787fddc43e.png">
 
 4.Press `Deploy`
 
@@ -101,7 +107,11 @@ msg: {
 - Select type of sensor (you might have to wait 10~20 seconds to get available sensors).
 - Set `Interval` to 60 (seconds).
 
+<img width="502" src="https://qiita-image-store.s3.amazonaws.com/0/12960/1bb5ec5d-7d01-ece7-334e-412848bfe0cf.png">
+
 2.Drag-and-Drop `debug` node then connect it with `linking-scanner`.
+
+<img width="440" src="https://qiita-image-store.s3.amazonaws.com/0/12960/f8cad626-e13f-dea6-ae04-be231b975ce6.png">
 
 3.Press `Deploy`
 
@@ -128,9 +138,14 @@ It's almost the same with linking-scanner except advertisement.
 - Select color and pattern (you might have to wait 10~20 seconds to get available colors and patterns).
 - Select type of sensor
 
+<img width="496" src="https://qiita-image-store.s3.amazonaws.com/0/12960/414377b7-b6f2-d9fc-3d79-9012ebb20729.png">
+
 2.Drag-n-Drop `inject` node then connect it with `linking-scanner`.
 
 - Set payload of inject node to boolean `true`
+
+<img width="403" src="https://qiita-image-store.s3.amazonaws.com/0/12960/8cdbedf3-8e93-d08c-bdf5-ecb7f8e5d50d.png">
+3.Injectノードをクリックすると、10～20秒後にLEDが点灯します。
 
 3.Press deploy
 
