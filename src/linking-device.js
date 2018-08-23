@@ -113,7 +113,7 @@ module.exports = function(RED) {
     let lastBeaconTimes = {};   // key: localName, value: time(os.uptime) of last beacon.
 
     ////////////////////////////////////////////////////////////////
-    // Common function for scanning (discovery)
+    // Common functions
     ////////////////////////////////////////////////////////////////
     /*
     function sleep(msec) {
@@ -390,7 +390,9 @@ module.exports = function(RED) {
         }
 
         function onScannerStatus(status) {
-            node.status(status);
+            if (scannerEnabled) {
+                node.status(status);
+            }
         }
 
         function onDiscover(advertisement, _device) {
