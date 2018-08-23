@@ -45,12 +45,12 @@
 </script>
 
 <script type="text/x-red" data-help-name="linking-scanner">
-    <p>A node which wraps <a href="https://github.com/futomi/node-linking">node-linking</a> to scan beacon signal from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. The beacon signal would also have sensor information. NOTE: Only one node can be deployed.</p>
+    <p>A node scan beacon(sensor) data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. NOTE: Only one node can be deployed.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
         <dd>
-          If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stop scanning.</dd> 
+          If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stops scanning.</dd> 
         </dd>
         <dt>autostart <span class="property-type">boolean</span></dt>
         <dd>
@@ -64,7 +64,7 @@
         -->
         <dt>interval <span class="property-type">number</span></dt>
         <dd>
-          <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get so many beacon data.
+          <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get too many beacon data.
         </dd>
       </dl>
     </h3>
@@ -145,7 +145,7 @@
          </dd>
         </dl>    
       </dl>
-      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
+      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a> which has detailed information like RSSI and distance.
     </h3>
 </script>
 
@@ -295,7 +295,7 @@
 </script>
 
 <script type="text/x-red" data-help-name="linking-led">
-    <p>A node to control Linking LED device.</p>
+    <p>A node which connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and turns on LED.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
@@ -679,12 +679,12 @@
 a
 
 <script type="text/x-red" data-help-name="linking-sensor">
-    <p>A node to read data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.</p>
+    <p>A node which connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and reads sensor data.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
         <dd>
-          If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node will be disconnected.</dd> 
+          If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node disconnects the Linking device.</dd> 
         </dd>
         <dt>services <span class="property-type">Object</span></dt>
         <dd>
