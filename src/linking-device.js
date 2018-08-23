@@ -774,128 +774,129 @@ module.exports = function(RED) {
 
         const onDisconnect = (name) => {
             if (localName === name) {
-                node.status({fill:'yellow', shape:'dot', text:'disconnected'});
+                if (ledEnabled) {
+                    node.status({fill:'yellow', shape:'dot', text:'disconnected'});
+                } else {
+                    node.status({fill:'grey', shape:'dot',text:'idle'});
+                }
+                
                 event.removeListener('dicsonnect', onDisconnect);
             }
         };
 
-        try {
-            node.on('input', async (msg) => {
-                // do not use msg.device because of possible connection management issue.
-                localName = config.device;
-                keepConnection = (msg.keepConnection != null) ? msg.keepConnection : !!config.keepConnection;
+        node.on('input', async (msg) => {
+            // do not use msg.device because of possible connection management issue.
+            localName = config.device;
+            keepConnection = (msg.keepConnection != null) ? msg.keepConnection : !!config.keepConnection;
 
-                if (! localName) {
-                    node.error('no device name specified.');
-                    return;
-                }
+            if (! localName) {
+                node.error('no device name specified.');
+                return;
+            }
 
-                const device = linkingDevices[localName];
-                if (device && device.services && (! device.services.led)) {
-                    node.warn('No led service: ' + localName);
-                    return;
-                }
+            const device = linkingDevices[localName];
+            if (device && device.services && (! device.services.led)) {
+                node.warn('No led service: ' + localName);
+                return;
+            }
 
-                node.debug('Turning LED on : ' + localName);
-                node.status({fill:'yellow', shape:'dot', text:'connecting'});
+            node.debug('Turning LED on : ' + localName);
+            node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
-                await getDeviceSemaphore(localName).take();
+            await getDeviceSemaphore(localName).take();
+            if (! ledEnabled) {
+                getDeviceSemaphore(localName).leave();
+                return;
+            }
+
+            try {
+                let device = await connectDevice(localName);
                 if (! ledEnabled) {
                     getDeviceSemaphore(localName).leave();
                     return;
                 }
 
-                try {
-                    let device = await connectDevice(localName);
-                    if (! ledEnabled) {
-                        getDeviceSemaphore(localName).leave();
-                        return;
-                    }
-
-                    if (! device.services || ! device.services.led) {
-                        node.warn('LED service unsupported: ' + localName);
-                        node.status({fill:'red', shape:'ring', text:'No led support'});
-                        getDeviceSemaphore(localName).leave();
-
-                        return;
-                    }
-
-                    event.on('disconnect', onDisconnect);
-                    node.status({fill:'green', shape:'dot', text:'connected'});
-
-                    if (msg.payload) {
-                        try {
-                            const res = await device.services.led.turnOn(msg.color, msg.pattern, msg.duration);
-                            if (!res.resultCode === 0) {
-                                node.warn('led.turnOn() failed. resultCode:'
-                                          + res.resultCode + '. ' + res.resultText);
-                            }
-                        } catch(error) {
-                            node.info('led.turnOn() failed. ' + error);
-                            node.status({fill:'red', shape:'ring', text:'turnOn error'});
-                        }
-                    } else {
-                        try {
-                            // turn off led
-                            await device.services.led.turnOff();
-                            // do nothing about result code
-                        } catch(error) {
-                            node.log('led.turnOff() failed. ' + error);
-                            node.status({fill:'red', shape:'ring', text:'turnOff error'});
-                        }
-                    }
-                } catch(error) {
-                    node.log('failed to connect ' + localName + ' : ' + error);
-                    node.status({fill:'red', shape:'ring', text:'connect error'});
-                } finally {
-                    if (! keepConnection) {
-                        try {
-                            await disconnectDevice(localName);
-                        } catch(error) {
-                            node.log('failed to disconnect ' + localName + ' : ' + error);
-                        }
-                    }
-
+                if (! device.services || ! device.services.led) {
+                    node.warn('LED service unsupported: ' + localName);
+                    node.status({fill:'red', shape:'ring', text:'No led support'});
                     getDeviceSemaphore(localName).leave();
-                }
-            });
 
-            node.on('close', async (done) => {
-                function closed() {
-                    node.debug('linking-led closed.');
-                    node.status({fill:'grey', shape:'dot',text:'idle'});
-
-                    done();
+                    return;
                 }
 
-                ledEnabled = true;
-                // node.debug('linking-led closing.');
+                node.status({fill:'green', shape:'dot', text:'connected'});
 
-                event.removeListener('disconnect', onDisconnect);
-
-                if (linkingDevices[localName] &&linkingDevices[localName].connected) {
-                    node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
-
-                    await getDeviceSemaphore(localName).take();
-
+                if (msg.payload) {
                     try {
-                        await disconnectDevice(localName);
-                        closed();
+                        const res = await device.services.led.turnOn(msg.color, msg.pattern, msg.duration);
+                        if (!res.resultCode === 0) {
+                            node.warn('led.turnOn() failed. resultCode:'
+                                      + res.resultCode + '. ' + res.resultText);
+                        }
                     } catch(error) {
-                        node.warn('failed to disconnect: ' + localName + ': ' + error);
-                        closed();
-                    } finally {
-                        getDeviceSemaphore(localName).leave();
+                        node.info('led.turnOn() failed. ' + error);
+                        node.status({fill:'red', shape:'ring', text:'turnOn error'});
                     }
                 } else {
-                    closed();
+                    try {
+                        // turn off led
+                        await device.services.led.turnOff();
+                        // do nothing about result code
+                    } catch(error) {
+                        node.log('led.turnOff() failed. ' + error);
+                        node.status({fill:'red', shape:'ring', text:'turnOff error'});
+                    }
                 }
-            });
+            } catch(error) {
+                node.log('failed to connect ' + localName + ' : ' + error);
+                node.status({fill:'red', shape:'ring', text:'connect error'});
+            } finally {
+                if (! keepConnection) {
+                    try {
+                        await disconnectDevice(localName);
+                    } catch(error) {
+                        node.log('failed to disconnect ' + localName + ' : ' + error);
+                    }
+                }
 
-            node.status({fill:'grey', shape:'dot',text:'idle'});
-        } catch(e) {
-            node.error('linking-led: ' + e);
-        }
+                getDeviceSemaphore(localName).leave();
+            }
+        });
+
+        node.on('close', async (done) => {
+            function closed() {
+                node.debug('linking-led closed.');
+                node.status({fill:'grey', shape:'dot',text:'idle'});
+
+                done();
+            }
+
+            ledEnabled = true;
+            // node.debug('linking-led closing.');
+
+            event.removeListener('disconnect', onDisconnect);
+
+            if (linkingDevices[localName] &&linkingDevices[localName].connected) {
+                node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
+
+                await getDeviceSemaphore(localName).take();
+
+                try {
+                    await disconnectDevice(localName);
+                    closed();
+                } catch(error) {
+                    node.warn('failed to disconnect: ' + localName + ': ' + error);
+                    closed();
+                } finally {
+                    getDeviceSemaphore(localName).leave();
+                }
+            } else {
+                closed();
+            }
+        });
+
+        event.on('disconnect', onDisconnect);
+        node.status({fill:'grey', shape:'dot',text:'idle'});
     }
 
     RED.nodes.registerType('linking-led',LinkingLedNode);
@@ -1218,7 +1219,7 @@ module.exports = function(RED) {
                 node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
 
                 try {
-                    // NOTE: will take semaphore
+                    // NOTE: will take care of semaphore
                     await disconnectToStopAllSensors();
 
                     node.status({fill:'grey', shape:'dot', text:'idle'});
@@ -1226,7 +1227,6 @@ module.exports = function(RED) {
                     node.warn('failed to disconnect: ' + localName + ':' + error);
                     node.status({fill:'yellow', shape:'dot',text:'disconnect error'});
                 } finally {
-                    getDeviceSemaphore(localName).leave();
                     closed();
                 }
             } else {
