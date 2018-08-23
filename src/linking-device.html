@@ -1,3 +1,19 @@
+<!--
+   Copyright (c) 2018 Takesh Inoue <inoue.takeshi@gmail.com>
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+
 <!-- Linking Scanner -->
 
 <script type="text/x-red" data-template-name="linking-scanner">
@@ -21,10 +37,10 @@
 	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
     </div>
     <div class="form-row">
-        <i class="fa fa-bluetooth-b"></i><span> Devices found</span>
+        <i class="fa fa-bluetooth-b" style="margin-bottom: 0.5em;"></i><span> Devices found</span>
         <!--a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a-->
 
-	    <ol id="node-input-devices" style="min-height:200px; min-diwdth: 450px; margin-top: 0.3em;"></ol>
+	    <ol id="node-input-devices" style="min-height:200px; min-diwdth: 450px;"></ol>
     </div>
 </script>
 
@@ -134,6 +150,8 @@
 </script>
 
 <script type="text/javascript">
+    var timerId;
+
     RED.nodes.registerType('linking-scanner',{
         category: 'Linking device',
         color: '#C0DEED',
@@ -163,7 +181,6 @@
         label: function() {
             return this.name||"linking-scanner";
         },
-        timerId: undefined,
         oneditprepare: function() {
             // callback(error)
             var getDevices = function(callback) {
@@ -179,12 +196,12 @@
 
                             var item = $('<div/>').appendTo(container);
                                 
-                            var name = $('<span/>', {
+                            $('<span/>', {
                                 style: 'margin-left: 1em;'
                             }).text(device.name).appendTo(item);
                                 
                             var rssiText = (device.sinceLastBeacon <= 60) ? 'RSSI: ' + device.rssi + ' dBm' : 'No beacon';
-                            var rssi = $('<span/>', {
+                            $('<span/>', {
                                 style: 'float: right; margin-right: 0.5em;'
                             }).text(rssiText).appendTo(item);
                         },
@@ -193,7 +210,7 @@
                         addButton: false
                     });
                                                           
-                    for (i in devices) {
+                    for (var i in devices) {
                         $('#node-input-devices').editableList('addItem', devices[i]);
                     }
                     
