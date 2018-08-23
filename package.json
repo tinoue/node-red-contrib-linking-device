@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint src || eslint -c .eslintrc.html.json --ext .html src",
-    "lint:fix": "eslint src --fix && eslint -c .eslintrc.html.json --ext .html src"
+    "lint": "eslint --ext .json --ext .js src || eslint -c .eslintrc.html.json --ext .html src",
+    "lint:fix": "eslint --ext .json --ext .js src --fix && eslint -c .eslintrc.html.json --ext .html src"
   },
   "node-red": {
     "nodes": {
@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "eslint": "^5.2.0",
-    "eslint-plugin-html": "^4.0.5"
+    "eslint-plugin-html": "^4.0.5",
+    "eslint-plugin-json": "^1.2.1"
   }
 }
