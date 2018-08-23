@@ -1,7 +1,8 @@
 # node-red-contrib-linking-device
 
-A Node-RED node for providing access to BLE devices called <a href="https://linkingiot.com/en/devices.html">Linking devi\
-ces</a> which are developed for <a href="https://linkingiot.com/en/index.html">Project Linking</a>.
+A Node-RED node for providing access to BLE(Bluetooth Low Energy) devices called <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.
+
+See <a href="https://linkingiot.com/en/index.html">Project Linking</a> for more information about the Linking Device.
 
 There are following three nodes:
 
@@ -21,7 +22,7 @@ There are following three nodes:
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
 
-Actual test has only be done with Tukeru TH and Sizuku THA.
+Note: Actual test has only be done with Tukeru TH and Sizuku THA.
 
 ### Unsupported
 
@@ -35,8 +36,7 @@ Actual test has only be done with Tukeru TH and Sizuku THA.
 - Linux OS (Tested on Raspberry Pi 3)
 - nodejs >= 8.0 (Tested by v8.11.3)
 - node-red (Tested by v0.18.7)
-- <a href="https://github.com/noble/noble">noble</a> : Using modified version maintained by <a href="https://github.com/\
-jrobeson/noble">jrobeson/noble</a> which doesn't work on MacOS.
+- <a href="https://github.com/noble/noble">noble</a> : Using modified version maintained by <a href="https://github.com/jrobeson/noble">jrobeson/noble</a> which doesn't work on MacOS.
 - <a href="https://github.com/futomi/node-linking">node-linking</a>
 
 ## Install guide
@@ -138,7 +138,7 @@ It's almost the same with linking-scanner except advertisement.
 
 You might have to wait 10~20 seconds to turn on LED.
 
-## Note
+## Notes
 
 ### Connection
 
@@ -148,19 +148,15 @@ Range of Linking Device is not so long. If connection is unstable I recommend to
 
 ### Use linking-sensor with linking-scanner
 
-If you use linking-sensor, use also linking-scanner. If linking-sensor fails to connect to the device, linking-scanner g\
-ets sensor data.
+If you use linking-sensor, use also linking-scanner. If linking-sensor fails to connect to the device, linking-scanner ges sensor data.
 
 ### linking-led with linking-sensor
 
-It takes 10-20 seconds to turn on LED when device is disconnected. Setting "Keep connection" in edit dialog will keep th\
-e device connectiong. But in the device is connected, linking-scanner can't get sensor from beacon signal. You should us\
-e linking-sensor in this case.
+It takes 10-20 seconds to turn on LED when device is disconnected. Setting "Keep connection" in edit dialog will keep the device connectiong. But in the device is connected, linking-scanner can't get sensor from beacon signal. You should use linking-sensor in this case.
 
 # Useful Links
 
-- <a href="https://github.com/futomi/node-linking">node-linking</a> : node-red-contrib-linking-device is heavily relied \
-on this library. Thanks!
+- <a href="https://github.com/futomi/node-linking">node-linking</a> : node-red-contrib-linking-device is heavily relied on this library. Thanks!
 
 # License
 
