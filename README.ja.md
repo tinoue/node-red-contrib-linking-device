@@ -6,19 +6,9 @@ Linkingデバイスについて、詳しくは <a href="https://linkingiot.com/i
 
 Linkingデバイス用ノードは以下の3つです
 
-- linking-scanner
-
-Linkingデバイスをスキャンし、ビーコンデータを出力します。Linkingデバイスが定期的に発信しているビーコンデータにはセンサーの情報が含まれているので、このノードを使うだけでセンサー情報の収集が可能です（ただし、接続が必要なデバイスもあります）。
-
-また、接続できないぐらいデバイスが離れている場合は、このノードを使うしかないです。
-
-- linking-sensor
-
-Linkingデバイスに接続して、センサー情報を取得します。比較的近くにデバスがある場合には、これを使って接続状態でセンサデータを取得すると、電池が長持ちする模様です。
-
-- linking-led
-
-Linkingデバイスに接続して、LEDの点灯リクエストを出します。接続が必須のため、比較的近くにデバイスがある場合に利用できます。
+- linking-scanner : Linkingデバイスをスキャンし、ビーコン(センサー)データを取得します。
+- linking-sensor : Linkingデバイスに接続して、センサー情報を取得します。
+- linking-led : Linkingデバイスに接続して、LEDの点灯リクエストを出します。
 
 ## Linkingデバイスの対応状況
 
@@ -76,12 +66,18 @@ node-red-stop && node-red-start
 
 1.インストールすると、Node-REDのパレットの linking device カテゴリーにノードが追加されます。
 
+<img width="178" src="https://qiita-image-store.s3.amazonaws.com/0/12960/9abc86fd-80d6-997c-7f06-08da62847f92.png">
+
 2.まず、linking-scannerノードをワークスペースにドラッグ＆ドロップし、ダブルクリックして設定を開きます。
 
 - `Start automatically at startup` をチェック
 - Intervalを60(秒)に設定
 
+<img width="500" src="https://qiita-image-store.s3.amazonaws.com/0/12960/ec7a0d07-a3cc-7445-2706-c3440d9788d4.png">
+
 3.次に、debugノードをワークスペースにドラッグ＆ドロップして、linking-scannerと接続します。
+
+<img width="414" src="https://qiita-image-store.s3.amazonaws.com/0/12960/cf7a3a3f-9075-3e3d-65e1-83787fddc43e.png">
 
 4.デプロイします。デバッグタブにLinkingデバイスからのビーコンデータが表示されれば正常動作してます。
 
@@ -112,7 +108,11 @@ advertisementはnode-linkingの [LinkingAdvertisement](https://github.com/futomi
 - しばらく時間がかかりますが、センサーの対応状況が読み込まれ、battery以外はデフォルトでチェックされます
 - Intervalを60(秒)に設定
 
+<img width="502" src="https://qiita-image-store.s3.amazonaws.com/0/12960/1bb5ec5d-7d01-ece7-334e-412848bfe0cf.png">
+
 2.次に、debugノードをワークスペースにドラッグ＆ドロップして、linking-scannerと接続します。
+
+<img width="440" src="https://qiita-image-store.s3.amazonaws.com/0/12960/f8cad626-e13f-dea6-ae04-be231b975ce6.png">
 
 3.デプロイします。デバッグタブにLinkingデバイスからのビーコンデータが表示されれば正常動作してます。
 
@@ -140,8 +140,11 @@ msg: {
 - しばらく時間がかかりますが、対応しているLEDの色・点灯パターンが読み込まれ、リストに表示されます。表示されない場合はリフレッシュボタンを押してください。
 - ここでTestボタンを押してLEDを点灯させてみることもできます。
 
+<img width="496" src="https://qiita-image-store.s3.amazonaws.com/0/12960/414377b7-b6f2-d9fc-3d79-9012ebb20729.png">
+
 2.Injectノードをワークスペースにドラッグ＆ドロップし、trueを出力するようにせっていして、linking-ledとつなげます。
 
+<img width="403" src="https://qiita-image-store.s3.amazonaws.com/0/12960/8cdbedf3-8e93-d08c-bdf5-ecb7f8e5d50d.png">
 3.Injectノードをクリックすると、10～20秒後にLEDが点灯します。
 
 ## Notes
