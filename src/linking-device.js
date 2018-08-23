@@ -29,6 +29,8 @@ const TAG = 'linking-device: ';
 
 const REQUEST_TIMEOUT = 60 * 1000;	// 1sec
 const SCANNER_RESTART_INTERVAL = 60 * 1000;	// 1sec
+const AUTOSTART_INTERVAL = 30 * 1000;
+
 
 // serviceId to string
 const serviceNames = {
@@ -769,7 +771,7 @@ module.exports = function(RED) {
         RED.nodes.createNode(this, config);
         let node = this;
         let localName = config.device;
-        let keepConnection;
+        let keepConnection = config.keepConnection;
         let ledEnabled = true;
 
         const onDisconnect = (name) => {
@@ -834,7 +836,7 @@ module.exports = function(RED) {
                                       + res.resultCode + '. ' + res.resultText);
                         }
                     } catch(error) {
-                        node.info('led.turnOn() failed. ' + error);
+                        node.warn('led.turnOn() failed. ' + error);
                         node.status({fill:'red', shape:'ring', text:'turnOn error'});
                     }
                 } else {
@@ -896,7 +898,28 @@ module.exports = function(RED) {
         });
 
         event.on('disconnect', onDisconnect);
+        /*
+        process.on('exit', () => {
+            if (ledEnabled) {
+                disconnectDevice(localName);
+            }
+        }
+        */
+
         node.status({fill:'grey', shape:'dot',text:'idle'});
+
+        if (config.keepConnection) {
+            setTimeout(() => {
+                if (ledEnabled) {
+                    connectDevice(localName).then(() => {
+                        node.status({fill:'green', shape:'dot', text:'connected'});
+                    }).catch((error) => {
+                        node.log('failed to connect: ' + error);
+                        node.status({fill:'red', shape:'ring', text:'onnect error'});
+                    });
+                }
+            }, AUTOSTART_INTERVAL);
+        }
     }
 
     RED.nodes.registerType('linking-led',LinkingLedNode);
@@ -906,8 +929,6 @@ module.exports = function(RED) {
     ////////////////////////////////////////////////////////////////
     function LinkingSensorNode(config) {
         RED.nodes.createNode(this, config);
-
-        const AUTOSTART_INTERVAL = 30 * 1000;
 
         let node = this;
         let localName = config.device;
@@ -1094,7 +1115,7 @@ module.exports = function(RED) {
                 // startSensor() would change this status later
                 node.status({fill:'green', shape:'dot', text:'connected'});
             } catch(error) {
-                node.error('failed to connect ' + localName + ' : ' + error);
+                node.warn('failed to connect ' + localName + ' : ' + error);
                 node.status({fill:'red', shape:'ring', text:'connect error'});
 
                 // Retry
@@ -1235,6 +1256,13 @@ module.exports = function(RED) {
             }
         });
 
+        /*
+        process.on('exit', () => {
+            if (sensorEnabled) {
+                disconnectDevice(localName);
+            }
+        }
+        */
         if (config.autostart) {
             setTimeout(() => {
                 if (sensorEnabled) {
