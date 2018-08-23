@@ -142,7 +142,7 @@ msg: {
 
 <img width="496" src="https://qiita-image-store.s3.amazonaws.com/0/12960/414377b7-b6f2-d9fc-3d79-9012ebb20729.png">
 
-2.Injectノードをワークスペースにドラッグ＆ドロップし、trueを出力するようにせっていして、linking-ledとつなげます。
+2.Injectノードをワークスペースにドラッグ＆ドロップし、trueを出力するように設定して、linking-ledとつなげます。
 
 <img width="403" src="https://qiita-image-store.s3.amazonaws.com/0/12960/8cdbedf3-8e93-d08c-bdf5-ecb7f8e5d50d.png">
 3.Injectノードをクリックすると、10～20秒後にLEDが点灯します。
