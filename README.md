@@ -145,11 +145,10 @@ It's almost the same with linking-scanner except advertisement.
 - Set payload of inject node to boolean `true`
 
 <img width="403" src="https://qiita-image-store.s3.amazonaws.com/0/12960/8cdbedf3-8e93-d08c-bdf5-ecb7f8e5d50d.png">
-3.Injectノードをクリックすると、10～20秒後にLEDが点灯します。
 
 3.Press deploy
 
-4.Click inject and see the LED turns on
+4.Click inject node and see the LED turns on
 
 You might have to wait 10~20 seconds to turn on LED.
 
