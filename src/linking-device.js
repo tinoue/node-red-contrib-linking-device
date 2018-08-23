@@ -1,3 +1,19 @@
+/*
+   Copyright (c) 2018 Takesh Inoue <inoue.takeshi@gmail.com>
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+const DEBUG = true;
 const os = require('os');
 
 const EventEmitter = require('events').EventEmitter;
@@ -899,18 +915,30 @@ module.exports = function(RED) {
 
         let sensorEnabled = config.autostart;
         let sensorInterval = 0; // seconds
+        let timerIds = [];
 
         let notifyCount = 0;
 
         function setRestartTimer(service) {
             if (sensorEnabled && sensorServices[service]) {
-                setTimeout(() => {
+                const id = setTimeout(() => {
                     try {
                         startSensor(service);
                     } catch(error) {
                         node.warn('failed to restart sensor: ' + localName + '/' + service + ': ' + error);
                     }
+
+                    timerIds.splice(timerIds.indexOf(id), 1);
                 }, Math.max(60 * 1000, sensorInterval * 1000));
+
+                timerIds.push(id);
+            }
+        }
+
+        function clearRestartTimer() {
+            let id;
+            while ((id = timerIds.pop()) != null) {
+                clearTimeout(id);
             }
         }
 
@@ -919,8 +947,7 @@ module.exports = function(RED) {
             node.debug('startSensor' + postfixMsg);
 
             if (! sensorEnabled) {
-                // NOTE: will take semaphore
-                disconnectToStopAllSensors();
+                node.warn('startSensor() called while !sensorEnabled.');
                 return;
             }
 
@@ -952,16 +979,18 @@ module.exports = function(RED) {
                 if (! sensorEnabled) {
                     getDeviceSemaphore(localName).leave();
 
+                    // Assumed that the linking-sensor is disabled while connecting to device. So disconnect.
+                    // This will take semaphore
                     disconnectToStopAllSensors();
                     return;
                 }
 
-                // node.debug('starting sensor' + postfixMsg);
+                DEBUG && node.debug('starting sensor' + postfixMsg);
 
                 try {
                     const result = await device.services[service].start();
 
-                    // node.debug('sensor started' + postfixMsg);
+                    DEBUG && node.debug('sensor started' + postfixMsg);
 
                     if (result.resultCode === 0) {
                         node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
@@ -996,13 +1025,16 @@ module.exports = function(RED) {
                     typeof(device.services[service].stop) === 'function') {
 
                     await getDeviceSemaphore(localName).take();
+                    if (! sensorEnabled) {
+                        return;
+                    }
 
                     try {
-                        // node.debug('stopping sensor' + postfixMsg);
+                        DEBUG && node.debug('stopping sensor' + postfixMsg);
 
                         await device.services[service].stop();
 
-                        // node.debug('sensor stopped' + postfixMsg);
+                        DEBUG && node.debug('sensor stopped' + postfixMsg);
                     } catch(error) {
                         node.log('failed to stop sensor' + postfixMsg);
                     } finally {
@@ -1065,9 +1097,13 @@ module.exports = function(RED) {
                 node.status({fill:'red', shape:'ring', text:'connect error'});
 
                 // Retry
-                setTimeout(() => {
+                const id = setTimeout(() => {
                     startAllSensors();
+
+                    timerIds.splice(timerIds.indexOf(id), 1);
                 }, Math.max(60 * 1000, sensorInterval * 1000));
+
+                timerIds.push(id);
             }
         }
 
@@ -1076,6 +1112,8 @@ module.exports = function(RED) {
                 node.info('disconnectToStopAllSensors(): Unexpected condition. skip');
                 return;
             }
+
+            clearRestartTimer();
 
             node.debug('Disconnecting to stop all sensors: ' + localName);
             node.status({fill:'yellow', shape:'dot', text:'disconnecting'});
@@ -1175,11 +1213,14 @@ module.exports = function(RED) {
             event.removeListener('disconnect', onDisconnect);
             event.removeListener('notify', onNotify);
             
-            if (linkingDevices[localName] && linkingDevices[localName].connected) {
+            // Call disconnectToStopAllSensors() even if disconnected to clear timers.
+            if (linkingDevices[localName]/* && linkingDevices[localName].connected*/) {
                 node.status({fill:'yellow', shape:'dot',text:'disconnecting'});
 
                 try {
-                    await disconnectDevice(localName);
+                    // NOTE: will take semaphore
+                    await disconnectToStopAllSensors();
+
                     node.status({fill:'grey', shape:'dot', text:'idle'});
                 } catch(error) {
                     node.warn('failed to disconnect: ' + localName + ':' + error);
