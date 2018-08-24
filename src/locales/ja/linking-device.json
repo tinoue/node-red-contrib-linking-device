@@ -1,0 +1,29 @@
+{
+    "linking-device": {
+        "label": {
+            "autostart": "起動時に自動で開始する",
+            "duration": "実行時間",
+            "interval": "出力間隔",
+            "devicesfound": "デバイス一覧",
+            "device": "デバイス",
+            "color" : "カラー",
+            "pattern" : "パターン",
+            "keepconnection" : "接続したままにする",
+            "ledtest": "LED点灯テスト",
+            "sensor" : "センサー",
+            "temperature" : "温度",
+            "humidity" : "湿度",
+            "airpressure" : "大気圧",
+            "battery" : "バッテリー情報",
+            "button" : "ボタン入力",
+            "gyroscope" : "ジャイロスコープ",
+            "accelerometer" : "加速度",
+            "orientation" : "方位(磁気)",
+            "ledon" : "このデバイスのLEDを点灯させる"
+        },
+        "placeholder": {
+            "duration": "実行時間(秒) (&gt;= 5秒。0で実行を継続)",
+            "interval": "データ出力間隔 (秒)"
+        }
+    }
+}

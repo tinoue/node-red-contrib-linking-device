@@ -1,0 +1,296 @@
+<!--
+   Copyright (c) 2018 Takesh Inoue <inoue.takeshi@gmail.com>
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+
+<!-- Linking Scanner -->
+
+<script type="text/x-red" data-help-name="linking-scanner">
+    <p><a href="https://linkingiot.com/devices.html">Linkingデバイス</a>をスキャンし、ビーコン(センサー)データを取得します。注意: このノードは1つだけ使用が可能です。</p>
+    <h3>入力</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">論理値</span></dt>
+        <dd>
+          <code>msg.payload</code>がtrueの場合、このノードはLinkingデバイスのスキャンを開始します。falseの場合はスキャンを停止します。</dd> 
+        </dd>
+        <dt>autostart <span class="property-type">論理値</span> (オプション)</dt>
+        <dd>
+          <code>msg.autostart</code>がtrueの場合、起動時に自動でスキャンを開始します。
+        </dd>
+        <!--
+        <dt>duration <span class="property-type">数値</span></dt>
+        <dd>
+          <code>msg.duration</code> specifies number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node tries to keep scanning forever.
+        </dd>
+        -->
+        <dt>interval <span class="property-type">数値</span> (オプション)</dt>
+        <dd>
+          <code>msg.interval</code>はデバイスが出力するビーコン（センサー）データの出力間関を設定します（単位: 秒)。同じセンサーからのデータが、ここで設定した間隔より短い時間で発生した場合は、そのデータは出力されずに捨てられます。
+        </dd>
+      </dl>
+    </h3>
+    <h3>出力</h3>
+        <p>このノードが出力する<code>msg</code>オブジェクトは以下のような内容となります。</p>
+        <p>msg.advertizementは<a href="https://github.com/futomi/node-linking/blob/master/README_ja.md#LinkingAdvertisement-object">LinkingAdvertisementオブジェクト</a>です。RSSIやdistanceなどの詳細情報を含んでいます。</p>
+        <dl>
+          <dt>温度</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_temperature'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: 33.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>湿度</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Tukeru_th012345_humidity'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "humidity",
+    data: 50.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>大気圧</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_tha012345_temperature'
+  payload: {
+    device: "Sizuku_tha012345",
+    service: "pressure",
+    data: 1013,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>ボタン入力</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Pichiru_012345_button'
+  payload: {
+    device: "Pochiru_th012345",
+    service: "button",
+    data: {
+        buttonName: 'SingleClick',
+        buttonId: 2
+    },
+  }
+}</pre>
+         buttonNameとbuttonIdについては、<a href="https://github.com/futomi/node-linking/blob/master/README_ja.md#%E3%83%9C%E3%82%BF%E3%83%B3%E6%8A%BC%E4%B8%8B%E6%83%85%E5%A0%B1%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9-serviceid-5">node-linkingのドキュメント</a>を参照してください。
+         </dd>
+        </dl>    
+        <dl>
+          <dt>照度</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Sizuku_lux012345_illuminance'
+  payload: {
+    device: "SizukuLux_th012345",
+    service: "illuminance",
+    data: 242,
+  }
+}</pre>
+         </dd>
+        </dl>    
+      </dl>
+    </h3>
+</script>
+
+<!-- Linking LED -->
+
+<script type="text/x-red" data-help-name="linking-led">
+    <p><a href="https://linkingiot.com/devices.html">Linkingデバイス</a>に接続して、デバイスのLEDを点灯させます。</p>
+    <h3>入力</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">論理値</span></dt>
+        <dd>
+          <code>msg.payload</code>がtrueの場合、Linkingデバイスに接続してLEDを点灯させます。.</dd> 
+        </dd>
+        <dt>color <span class="property-type">文字列</span> (オプション)</dt>
+        <dd>
+          <code>msg.color</code> は'Red'などLEDの色を指定します。指定可能な色はデバイスに依存します。
+        </dd>
+        <dt>pattern <span class="property-type">文字列</span> (オプション)</dt>
+        <dd>
+          <code>msg.pattern</code> は'Pattern1'など、LEDの点灯パターンを指定します。指定可能なパターンはデバイスに依存します。
+        </dd>
+        <dt>keepConnection <span class="property-type">論理値</span> (オプション)</dt>
+        <dd>
+        <code>msg.keepConnection</code> がtrueの場合、LEDの点灯リクエストが終了しても接続を解除せずそのままにします。再接続が不要になる分LEDがすぐ点灯するようになります。注意: 接続中はLinkingデバイスからのビーコン（センサー）データは取得できなくなります。
+        </dd>
+      </dl>
+    </h3>
+</script>
+
+<!-- Linking Sensor -->
+
+<script type="text/x-red" data-help-name="linking-sensor">
+    <p><a href="https://linkingiot.com/devices.html">Linkingデバイス</a>に接続して、センサー等のデータを取得します。</p>
+    <h3>Inputs</h3>
+      <dl class="message-properties">
+        <dt>payload <span class="property-type">論理値</span></dt>
+        <dd>
+          <code>msg.payload</code> がtrueの場合、Linkingデバイスに接続しセンサーデータの取得を開始します。falseの場合はLinkingデバイスとの接続を解除します。</dd> 
+        </dd>
+        <dt>autostart <span class="property-type">論理値</span> (オプション)</dt>
+        <dd>
+          <code>msg.autostart</code> がtrueの場合、起動時にデバイスへの接続とデータの取得を自動で開始します。
+        </dd>
+        <dt>interval <span class="property-type">数値</span> (オプション)</dt>
+        <dd>
+          <code>msg.interval</code> はセンサーデータの出力間隔を指定します (単位: 秒)。
+        </dd>
+        <dt>services <span class="property-type">オブジェクト</span> (オプション)</dt>
+        <dd>
+          <code>msg.services</code> はどのセンサーサービスを有効にするかを、以下のような形式で指定します:
+<pre>
+    {
+        temperature: true,
+        humidity: true
+    }
+</pre>
+        </dd>
+      </dl>
+    </h3>
+    <h3>出力</h3>
+        <p>このノードが出力する<code>msg</code>オブジェクトは以下のような内容となります。advertisementがない以外は、linking-sensorと同じ内容です:</p>
+        <dl>
+          <dt>温度</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_temperature'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: 33.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>湿度</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_humidity'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "humidity",
+    data: 50.5,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>大気圧</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_tha012345_temperature'
+  payload: {
+    device: "Sizuku_tha012345",
+    service: "pressure",
+    data: 1013,
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>バッテリー情報</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Tukeru_th012345_battery'
+  payload: {
+    device: "Tukeru_th012345",
+    service: "temperature",
+    data: {
+        chargeRequired: false,
+        chargeLeval 0
+    }
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>ボタン入力</dt>
+          <dd>
+        <pre>{
+  advertisement: LinkingAdvertisement object,
+  topic: 'linking/Pichiru_012345_button'
+  payload: {
+    device: "Pochiru_th012345",
+    service: "button",
+    data: {
+        buttonName: 'SingleClick',
+        buttonId: 2
+    },
+  }
+}</pre>
+         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
+         </dd>
+        </dl>    
+        <dl>
+          <dt>ジャイロスコープ</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_gyroscope'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "gyroscope",
+    data: {x: 0.7012194991111755, y: 0.9756097793579102, z: -0.12195122241973877}
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>加速度</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_accelerometer'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "accelerometer",
+    data: {x: -0.007000000216066837, y: -0.052000001072883606, z: 1.0010000467300415}
+  }
+}</pre>
+         </dd>
+        </dl>    
+        <dl>
+          <dt>方位（磁気）</dt>
+          <dd>
+        <pre>{
+  topic: 'linking/Sizuku_6x012345_orientation'
+  payload: {
+    device: "Sizuku_6x012345",
+    service: "orientation",
+      data: {x: 1.128000020980835, y: 0.2849999964237213, z: 1.559000015258789}
+  }
+}</pre>
+         </dd>
+        </dl>    
+      </dl>
+    </h3>
+</script>

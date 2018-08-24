@@ -18,135 +18,30 @@
 
 <script type="text/x-red" data-template-name="linking-scanner">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-	    <input type="text" id="node-input-name" placeholder="Name">
+    <label for="node-input-name"><i class="icon-tag"></i> <span data-i18n="node-red:common.label.name"></span></label>
+	    <input type="text" id="node-input-name" data-i18n="[placeholder]node-red:common.label.name">
     </div>
     <div class="form-row">
         <label>&nbsp;</label>
 	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
-        <label for="node-input-autostart" style="width: 70%;"> Start automatically at startup</label>
+    <label for="node-input-autostart" style="width: 70%;"><span data-i18n="linking-device.label.autostart"></span></label>
     </div>
     <!--
     <div class="form-row">
-        <label for="node-input-duration"><i class="icon-tag"></i> Duration</label>
-	    <input type="text" id="node-input-duration" placeholder="Duration in seconds (&gt;= 5sec or 0 for forever)">
+        <label for="node-input-duration"><i class="icon-tag"></i> <span data-i18n="linking-device.label.duration"></span></label>
+	    <input type="text" id="node-input-duration" data-i18n="[placeholder]linking-device.placeholder.duration">
     </div>
     -->
     <div class="form-row">
-        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
-	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> <span data-i18n="linking-device.label.interval"></span></label>
+	    <input type="text" id="node-input-interval" data-i18n="[placeholder]linking-device.placeholder.interval">
     </div>
     <div class="form-row">
-        <i class="fa fa-bluetooth-b" style="margin-bottom: 0.5em;"></i><span> Devices found</span>
+        <i class="fa fa-bluetooth-b" style="margin-bottom: 0.5em;"></i> <span data-i18n="linking-device.label.devicesfound"></span>
         <!--a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a-->
 
 	    <ol id="node-input-devices" style="min-height:200px; min-diwdth: 450px;"></ol>
     </div>
-</script>
-
-<script type="text/x-red" data-help-name="linking-scanner">
-    <p>A node which wraps <a href="https://github.com/futomi/node-linking">node-linking</a> to scan beacon signal from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. The beacon signal would also have sensor information. NOTE: Only one node can be deployed.</p>
-    <h3>Inputs</h3>
-      <dl class="message-properties">
-        <dt>payload <span class="property-type">boolean</span></dt>
-        <dd>
-          If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stop scanning.</dd> 
-        </dd>
-        <dt>autostart <span class="property-type">boolean</span></dt>
-        <dd>
-          If <code>msg.autostart</code> is true, this node starts to scan automatically at startup.
-        </dd>
-        <!--
-        <dt>duration <span class="property-type">number</span></dt>
-        <dd>
-          <code>msg.duration</code> specifies number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node tries to keep scanning forever.
-        </dd>
-        -->
-        <dt>interval <span class="property-type">number</span></dt>
-        <dd>
-          <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get so many beacon data.
-        </dd>
-      </dl>
-    </h3>
-    <h3>Output</h3>
-        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
-        <dl>
-          <dt>Temperature</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Tukeru_th012345_temperature'
-  payload: {
-    device: "Tukeru_th012345",
-    service: "temperature",
-    data: 33.5,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Humidity</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Tukeru_th012345_humidity'
-  payload: {
-    device: "Tukeru_th012345",
-    service: "humidity",
-    data: 50.5,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Air pressure</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Sizuku_tha012345_temperature'
-  payload: {
-    device: "Sizuku_tha012345",
-    service: "pressure",
-    data: 1013,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Button</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Pichiru_012345_button'
-  payload: {
-    device: "Pochiru_th012345",
-    service: "button",
-    data: {
-        buttonName: 'SingleClick',
-        buttonId: 2
-    },
-  }
-}</pre>
-         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Illuminance</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Sizuku_lux012345_illuminance'
-  payload: {
-    device: "SizukuLux_th012345",
-    service: "illuminance",
-    data: 242,
-  }
-}</pre>
-         </dd>
-        </dl>    
-      </dl>
-      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a>.
-    </h3>
 </script>
 
 <script type="text/javascript">
@@ -262,60 +157,36 @@
 
 <script type="text/x-red" data-template-name="linking-led">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <label for="node-input-name"><i class="icon-tag"></i> <span data-i18n="node-red:common.label.name"></span></label>
+        <input type="text" id="node-input-name" data-i18n="[placeholder]node-red:common.label.name">
     </div>
     <div class="form-row">
-        <label for="node-input-device"><i class="fa fa-bluetooth"></i> Device</label>
+    <label for="node-input-device"><i class="fa fa-bluetooth"></i> <span data-i18n="linking-device.label.device"></span></label>
         <select id="node-input-device">
         </select>
         <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
-        <label for="node-input-color"><i class="icon-tag"></i> Color</label>
+        <label for="node-input-color"><i class="icon-tag"></i> <span data-i18n="linking-device.label.color"></span></label>
 	    <select id="node-input-color">
 	    </select>
         <a id="node-input-color-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
-        <label for="node-input-pattern"><i class="icon-tag"></i> Pattern</label>
+        <label for="node-input-pattern"><i class="icon-tag"></i> <span data-i18n="linking-device.label.pattern"></span></label>
 	    <select id="node-input-pattern">
 	    </select>
         <a id="node-input-pattern-refresh" class="btn"><i class="fa fa-refresh"></i></a>
     </div>
     <div class="form-row">
         <label>&nbsp;</label>
-	    <input type="checkbox" id="node-input-keepconnection" style="display: inline-block; width: auto; vertical-align: top;">
-        <label for="node-input-keepconnection" style="width: 70%;"> Keep connection</label>
+	    <input type="checkbox" id="node-input-keepConnection" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-keepConnection" style="width: 70%;"> <span data-i18n="linking-device.label.keepconnection"></span></label>
 	    </select>
     </div>
     <div class="form-row">
-        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i>Turn on LED for test</a>
+        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i><span data-i18n="linking-device.label.ledtest"></span></a>
     </div>
-</script>
-
-<script type="text/x-red" data-help-name="linking-led">
-    <p>A node to control Linking LED device.</p>
-    <h3>Inputs</h3>
-      <dl class="message-properties">
-        <dt>payload <span class="property-type">boolean</span></dt>
-        <dd>
-          <code>msg.payload</code> should be set to turn on/off LED.</dd> 
-        </dd>
-        <dt>color <span class="property-type">string</span> (Optional)</dt>
-        <dd>
-          <code>msg.color</code> specifies LED color like 'Red'. Available colors are depend on device.
-        </dd>
-        <dt>pattern <span class="property-type">string</span> (Optional)</dt>
-        <dd>
-          <code>msg.pattern</code> specifies LED pattern like 'Pattern1'. Available patterns are depend on device.
-        </dd>
-        <dt>keepConnection <span class="property-type">boolean</span> (Optional)</dt>
-        <dd>
-        <code>msg.keepConnection</code> specifies not to disconnect the device after LED on/off operation. NOTE: This disables beacon data from this device.
-        </dd>
-      </dl>
-    </h3>
 </script>
 
 <script type="text/javascript">
@@ -343,7 +214,7 @@
             },
             color: {value:""},
             pattern: {value:""},
-            keepConection: {value:false}
+            keepConnection: {value:false}
         },
         inputs:1,
         outputs:0,
@@ -593,11 +464,11 @@
 
 <script type="text/x-red" data-template-name="linking-sensor">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <label for="node-input-name"><i class="icon-tag"></i> <span data-i18n="node-red:common.label.name"></span></label>
+        <input type="text" id="node-input-name" data-i18n="[placeholder]node-red:common.label.name">
     </div>
     <div class="form-row">
-        <label for="node-input-device"><i class="fa fa-bluetooth"></i> Device</label>
+        <label for="node-input-device"><i class="fa fa-bluetooth"></i> <span data-i18n="linking-device.label.device"></span></label>
         <select id="node-input-device">
         </select>
         <a id="node-input-device-refresh" class="btn"><i class="fa fa-refresh"></i></a>
@@ -605,223 +476,76 @@
     <div class="form-row">
         <label>&nbsp;</label>
 	    <input type="checkbox" id="node-input-autostart" style="display: inline-block; width: auto; vertical-align: top;">
-        <label for="node-input-autostart" style="width: 70%;"> Start automatically at startup</label>
+        <label for="node-input-autostart" style="width: 70%;"> <span data-i18n="linking-device.label.autostart"></span><label>
     </div>
     <div class="form-row">
-        <label for="node-input-interval"><i class="fa fa-repeat"></i> Interval</label>
-	    <input type="text" id="node-input-interval" placeholder="Interval in seconds">
+        <label for="node-input-interval"><i class="fa fa-repeat"></i> <span data-i18n="linking-device.label.interval"></span></label>
+	    <input type="text" id="node-input-interval" data-i18n="[placeholder]linking-device.placeholder.interval">
     </div>
     <div class="form-row" style="margin-bottom:0;">
-        <label for="node-input-services"><i class="fa fa-random"></i> Sensor</label>
+        <label for="node-input-services"><i class="fa fa-random"></i> <span data-i18n="linking-device.label.sensor"></span></label>
         <label for="node-input-sensor" style="width:200px;">
             <input type="checkbox" id="node-input-temperature" style="display:inline-blok; width:22px; vertical-align:baseline;">
-            <span>Temperature</span>
+            <span data-i18n="linking-device.label.temperature"></span>
         </label>
     </div>
     <div id="node-input-sensors">
         <div class="form-row" style="margin-bottom:0;">
             <label>
                 <a id="node-input-sensor-refresh" class="btn"><i class="fa fa-refresh"></i></a>
-            </label>  
+            </label>
             <label for="node-input-humidity" style="width:200px;">
                 <input type="checkbox" id="node-input-humidity" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Humidity</span>
+                <span data-i18n="linking-device.label.humidity"></span>
             </label>
         </div>
         <div class="form-row" style="margin-bottom:0;">
             <label></label>  
             <label for="node-input-pressure" style="width:200px;">
                 <input type="checkbox" id="node-input-pressure" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Air Pressure</span>
+                <span data-i18n="linking-device.label.airpressure"></span>
             </label>
         </div>
         <div class="form-row" style="margin-bottom:0;">
             <label></label>  
             <label for="node-input-battery" style="width:200px;">
                 <input type="checkbox" id="node-input-battery" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Battery</span>
+                <span data-i18n="linking-device.label.battery"></span>
             </label>
         </div>
         <div class="form-row" style="margin-bottom:0;">
             <label></label>  
             <label for="node-input-button" style="width:200px;">
                 <input type="checkbox" id="node-input-button" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Button</span>
+                <span data-i18n="linking-device.label.button"></span>
             </label>
         </div>
         <div class="form-row" style="margin-bottom:0;">
             <label></label>  
             <label for="node-input-gyroscope" style="width:200px;">
                 <input type="checkbox" id="node-input-gyroscope" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Gyroscope</span>
+                <span data-i18n="linking-device.label.gyroscope"></span>
             </label>
         </div>
         <div class="form-row" style="margin-bottom:0;">
             <label></label>  
             <label for="node-input-accelerometer" style="width:200px;">
                 <input type="checkbox" id="node-input-accelerometer" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Accelerometer</span>
+                <span data-i18n="linking-device.label.accelerometer"></span>
             </label>
         </div>
         <div class="form-row">
             <label></label>  
             <label for="node-input-orientation" style="width:200px;">
                 <input type="checkbox" id="node-input-orientation" style="display:inline-blok; width:22px; vertical-align:baseline;">
-                <span>Orientation</span>
+                <span data-i18n="linking-device.label.orientation"></span>
             </label>
         </div>
     </div>
     
     <div class="form-row">
-        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i>Turn on LED of this device</a>
+        <a id="node-input-led-test" class="btn"><i class="fa fa-lightbulb-o" style="margin-right:0.5em"></i> <span data-i18n="linking-device.label.ledon"></span></a>
     </div>
-</script>
-a
-
-<script type="text/x-red" data-help-name="linking-sensor">
-    <p>A node to read data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.</p>
-    <h3>Inputs</h3>
-      <dl class="message-properties">
-        <dt>payload <span class="property-type">boolean</span></dt>
-        <dd>
-          If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node will be disconnected.</dd> 
-        </dd>
-        <dt>services <span class="property-type">Object</span></dt>
-        <dd>
-          <code>msg.services</code> specifies services to read from Linking device which looks likc:
-<pre>
-    {
-        temperature: true,
-        humidity: true
-    }
-</pre>
-        </dd>
-        <dt>interval <span class="property-type">number</span></dt>
-        <dd>
-          <code>msg.interval</code> specifies interval to read data in seconds.
-        </dd>
-        <dt>autostart <span class="property-type">boolean</span></dt>
-        <dd>
-          If <code>msg.autostart</code> is true, this node starts automatically at 30 seconds after startup.
-        </dd>
-      </dl>
-    </h3>
-    <h3>Output</h3>
-        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
-        <dl>
-          <dt>Temperature</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Tukeru_th012345_temperature'
-  payload: {
-    device: "Tukeru_th012345",
-    service: "temperature",
-    data: 33.5,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Humidity</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Tukeru_th012345_humidity'
-  payload: {
-    device: "Tukeru_th012345",
-    service: "humidity",
-    data: 50.5,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Air pressure</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Sizuku_tha012345_temperature'
-  payload: {
-    device: "Sizuku_tha012345",
-    service: "pressure",
-    data: 1013,
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Battery</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Tukeru_th012345_battery'
-  payload: {
-    device: "Tukeru_th012345",
-    service: "temperature",
-    data: {
-        chargeRequired: false,
-        chargeLeval 0
-    }
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Button</dt>
-          <dd>
-        <pre>{
-  advertisement: LinkingAdvertisement object,
-  topic: 'linking/Pichiru_012345_button'
-  payload: {
-    device: "Pochiru_th012345",
-    service: "button",
-    data: {
-        buttonName: 'SingleClick',
-        buttonId: 2
-    },
-  }
-}</pre>
-         <a>See <a href="https://github.com/tinoue/node-linking/blob/master/README.md#LinkingButton-object">node-linking document</a> for the detail of buttonName and buttonId.
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Gyroscope</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Sizuku_6x012345_gyroscope'
-  payload: {
-    device: "Sizuku_6x012345",
-    service: "gyroscope",
-    data: {x: 0.7012194991111755, y: 0.9756097793579102, z: -0.12195122241973877}
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Accelerometer</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Sizuku_6x012345_accelerometer'
-  payload: {
-    device: "Sizuku_6x012345",
-    service: "accelerometer",
-    data: {x: -0.007000000216066837, y: -0.052000001072883606, z: 1.0010000467300415}
-  }
-}</pre>
-         </dd>
-        </dl>    
-        <dl>
-          <dt>Orientation</dt>
-          <dd>
-        <pre>{
-  topic: 'linking/Sizuku_6x012345_orientation'
-  payload: {
-    device: "Sizuku_6x012345",
-    service: "orientation",
-      data: {x: 1.128000020980835, y: 0.2849999964237213, z: 1.559000015258789}
-  }
-}</pre>
-         </dd>
-        </dl>    
-      </dl>
-    </h3>
 </script>
 
 <script type="text/javascript">

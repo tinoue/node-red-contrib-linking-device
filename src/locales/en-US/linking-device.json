@@ -1,0 +1,29 @@
+{
+    "linking-device": {
+        "label": {
+            "autostart": "Start automatically at startup",
+            "duration": "Duration",
+            "interval": "Interval",
+            "devicesfound": "Devices found",
+            "device": "Device",
+            "color" : "Color",
+            "pattern" : "Pattern",
+            "keepconnection" : "Keep connection",
+            "ledtest": "Turn on LED for test",
+            "sensor" : "Sensor",
+            "temperature" : "Temperature",
+            "humidity" : "Humidity",
+            "airpressure" : "Air pressure",
+            "battery" : "Battery",
+            "button" : "Button",
+            "gyroscope" : "Gyroscope",
+            "accelerometer" : "Accelerometer",
+            "orientation" : "Orientation",
+            "ledon" : "Turn on LED of this device"
+        },
+        "placeholder": {
+            "duration": "Duration in seconds (&gt;= 5sec or 0 for forever)",
+            "interval": "Interval in seconds"
+        }
+    }
+}

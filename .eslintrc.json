@@ -29,5 +29,8 @@
 	        "args": "after-used",
 	        "argsIgnorePattern": "^_"
 	    }]
-    }
+    },
+    "plugins": [
+        "json"
+    ]
 }
