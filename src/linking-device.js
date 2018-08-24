@@ -853,8 +853,10 @@ module.exports = function(RED) {
                 if (! keepConnection) {
                     try {
                         await disconnectDevice(localName);
+                        node.status({fill:'grey', shape:'dot',text:'idle'});
                     } catch(error) {
                         node.log('failed to disconnect ' + localName + ' : ' + error);
+                        node.status({fill:'red', shape:'ring', text:'disconnect error'});
                     }
                 }
 
@@ -906,6 +908,8 @@ module.exports = function(RED) {
         node.status({fill:'grey', shape:'dot',text:'idle'});
 
         if (config.keepConnection) {
+            node.status({fill:'yellow', shape:'dot',text:'connecting'});
+
             setTimeout(() => {
                 if (ledEnabled) {
                     connectDevice(localName).then(() => {
@@ -1129,6 +1133,7 @@ module.exports = function(RED) {
         async function disconnectToStopAllSensors() {
             if (sensorEnabled) {
                 node.info('disconnectToStopAllSensors(): Unexpected condition. skip');
+                node.status({fill:'grey', shape:'dot', text:'idle'});
                 return;
             }
 
@@ -1260,7 +1265,12 @@ module.exports = function(RED) {
             }
         }
         */
+
+        node.status({fill:'grey', shape:'dot', text:'idle'});
+
         if (config.autostart) {
+            node.status({fill:'yellow', shape:'dot',text:'connecting'});
+
             setTimeout(() => {
                 if (sensorEnabled) {
                     node.emit('input', {payload: true});
