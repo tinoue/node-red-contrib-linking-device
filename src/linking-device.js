@@ -34,12 +34,14 @@ const AUTOSTART_INTERVAL = 30 * 1000;
 
 // serviceId to string
 const serviceNames = {
+    '0': 'general',
     '1': 'temperature',
     '2': 'humidity',
     '3': 'pressure',
     '4': 'battery',
     '5': 'button',
     '9': 'illuminance',
+    '15': 'vendor'
 };
 
 // class PromiseSemaphore: Promise version of Semaphore with timeout
@@ -143,7 +145,12 @@ module.exports = function(RED) {
             return data[service];
         } else {
             switch(service) {
+            case 'general':
+            case 'vendor':
+                // Sizuku Lux will send this type of beacon. Just skip
+                return;
             case 'battery':
+                // Most devices doesn't send this except Sizuku Lux
                 return {
                     chargeRequired: data.chargeRequired,
                     chargeLevel: data.chargeLevel
@@ -162,7 +169,7 @@ module.exports = function(RED) {
                     z: data.z
                 };
             default:
-                logger.debug('Unsupported beacon data: ' + JSON.strigify(data));
+                logger.debug('Unsupported beacon data: ' + JSON.stringify(data));
                 break;
             }
         }
@@ -399,32 +406,36 @@ module.exports = function(RED) {
             if (advertisement.beaconDataList && (advertisement.beaconDataList.length)) {
                 // Convert beacon data to linking-scanner format
                 for (let data of advertisement.beaconDataList) {
-                    if (data.serviceId && serviceNames[data.serviceId]) {
+                    if (typeof(data.serviceId) === 'number' && serviceNames[data.serviceId]) {
                         const localName = advertisement.localName;
                         const service = serviceNames[data.serviceId];
+                        const beaconData = getBeaconData(data, service);
 
-                        // Check rate limit first
-                        const topic = getTopic(localName, service);
-                        if (scannerLimiter[topic] == null) {
-                            scannerLimiter[topic]
-                                = new RateLimiter(1, scannerInterval * 1000);
-                        } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
-                            return;
+                        if (beaconData) {
+                            // Check rate limit first
+                            const topic = getTopic(localName, service);
+                            const msg = {
+                                advertisement: advertisement,
+                                payload : {
+                                    device: localName,
+                                    service: service,
+                                    data: beaconData
+                                },
+                                topic: topic
+                            };
+
+                    
+                            if (scannerLimiter[topic] == null) {
+                                scannerLimiter[topic]
+                                    = new RateLimiter(1, scannerInterval * 1000);
+                            } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
+                                return;
+                            }
+
+                            node.send(msg);
                         }
-
-                        const msg = {
-                            advertisement: advertisement,
-                            payload : {
-                                device: localName,
-                                service: service,
-                                data: getBeaconData(data, service)
-                            },
-                            topic: topic
-                        };
-
-                        node.send(msg);
                     } else {
-                        node.debug('Unsupported beacon data: ' + JSON.strigify(data));
+                        node.debug('Unsupported beacon data: ' + JSON.stringify(data));
                     }
                 }
             } else {
