@@ -1,29 +1,29 @@
 {
     "linking-device": {
         "label": {
-            "autostart": "Start automatically at startup",
-            "duration": "Duration",
-            "interval": "Interval",
-            "devicesfound": "Devices found",
-            "device": "Device",
-            "color" : "Color",
-            "pattern" : "Pattern",
-            "keepconnection" : "Keep connection",
-            "ledtest": "Turn on LED for test",
-            "sensor" : "Sensor",
-            "temperature" : "Temperature",
-            "humidity" : "Humidity",
-            "airpressure" : "Air pressure",
-            "battery" : "Battery",
-            "button" : "Button",
-            "gyroscope" : "Gyroscope",
-            "accelerometer" : "Accelerometer",
-            "orientation" : "Orientation",
-            "ledon" : "Turn on LED of this device"
+            "autostart": "起動時に自動で開始する",
+            "duration": "実行時間",
+            "interval": "データ出力間隔",
+            "devicesfound": "デバイス一覧",
+            "device": "デバイス",
+            "color" : "カラー",
+            "pattern" : "パターン",
+            "keepconnection" : "接続したままにする",
+            "ledtest": "LED点灯テスト",
+            "sensor" : "センサー",
+            "temperature" : "温度",
+            "humidity" : "湿度",
+            "airpressure" : "大気圧",
+            "battery" : "バッテリー情報",
+            "button" : "ボタン入力",
+            "gyroscope" : "ジャイロスコープ",
+            "accelerometer" : "加速度",
+            "orientation" : "方位(磁気)",
+            "ledon" : "このデバイスのLEDを点灯させる"
         },
         "placeholder": {
-            "duration": "Duration in seconds (&gt;= 5sec or 0 for forever)",
-            "interval": "Interval in seconds"
+            "duration": "実行時間(秒) (&gt;= 5秒。0で実行を継続)",
+            "interval": "データ出力間隔 (秒)"
         }
     }
 }
