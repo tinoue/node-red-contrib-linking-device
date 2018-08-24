@@ -625,9 +625,6 @@ module.exports = function(RED) {
     //    timeout: Optional. Default is 10 seconds.
     // Returns async Device
     async function connectDevice(localName, timeout) {
-        let connectTimerId;
-        let leaveSemaphore;
-
         let device = linkingDevices[localName];
         if (device && device.connected) {
             return device;
@@ -637,7 +634,6 @@ module.exports = function(RED) {
 
         try {
             await connectSemaphore.take();
-            leaveSemaphore = true;
 
             // Check again. 
             device = linkingDevices[localName];
@@ -655,25 +651,32 @@ module.exports = function(RED) {
                 await stopNobleScan();
             }
 
-            connectTimerId = setTimeout(() => {
-                const message = 'connection timeout.';
+            // Set connection timeout handler
 
-                logger.log(TAG + message);
-                if (leaveSemaphore) {
-                    try {
-                        connectSemaphore.leave();
-                        leaveSemaphore = false;
-                    } catch(error) {
-                        logger.warn('connectSemaphore: ' + error);
-                    }
-                }
-            }, REQUEST_TIMEOUT);
+            const connectWithTimeout = (device) => {
+                return new Promise((resolve, reject) => {
+                    const connectTimerId = setTimeout(() => {
+                        const message = 'connect doesn\'t respond.';
+
+                        logger.log(TAG + message);
+                        reject(new Error(message));
+                    }, REQUEST_TIMEOUT);
+
+                    device.connect().then(() => {
+                        clearTimeout(connectTimerId);
+                        resolve();
+                    }).catch((error) => {
+                        clearTimeout(connectTimerId);
+                        reject(error);
+                    });
+                });
+            };
+
+            // connect
 
             logger.debug(TAG + 'connecting to device: ' + localName);
-            await device.connect();
+            await connectWithTimeout(device);
             logger.debug(TAG + 'device connected: ' + localName);
-
-            clearTimeout(connectTimerId);
 
             device.ondisconnect = () => {
                 logger.log(TAG + 'device disconnected: ' + localName);
@@ -691,24 +694,16 @@ module.exports = function(RED) {
             }
 
             event.emit('connect', localName);
-
-            clearTimeout(connectTimerId);
             connectSemaphore.leave();
-            leaveSemaphore = false;
 
             return device;
         } catch(error) {
             logger.warn(error + ': ' + localName);
 
-            clearTimeout(connectTimerId);
-
-            if (leaveSemaphore) {
-                try {
-                    leaveSemaphore = false;
-                    connectSemaphore.leave();
-                } catch (error) {
-                    logger.warn('failed to leave semaphore' + error);
-                }
+            try {
+                connectSemaphore.leave();
+            } catch (error) {
+                logger.warn('failed to leave semaphore: ' + error);
             }
 
             throw error;
