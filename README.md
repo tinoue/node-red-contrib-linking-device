@@ -1,5 +1,7 @@
 # node-red-contrib-linking-device
 
+\[[日本語](README.ja.md)\]
+
 A Node-RED node for providing access to BLE(Bluetooth Low Energy) devices called <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.
 
 See <a href="https://linkingiot.com/en/index.html">Project Linking</a> for more information about the Linking Device.

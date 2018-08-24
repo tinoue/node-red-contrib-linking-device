@@ -17,14 +17,14 @@
 <!-- Linking Scanner -->
 
 <script type="text/x-red" data-help-name="linking-scanner">
-    <p>A node scan beacon(sensor) data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. NOTE: Only one node can be deployed.</p>
+    <p>Scans beacon(sensor) data from  <a href="https://linkingiot.com/en/devices.html">Linking devices</a>. NOTE: Only one node can be deployed.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
         <dd>
           If <code>msg.payload</code> is true, this node starts to scan beacon signal from Linking devices. If false, this node stops scanning.</dd> 
         </dd>
-        <dt>autostart <span class="property-type">boolean</span></dt>
+        <dt>autostart <span class="property-type">boolean</span> (Optional)</dt>
         <dd>
           If <code>msg.autostart</code> is true, this node starts to scan automatically at startup.
         </dd>
@@ -34,7 +34,7 @@
           <code>msg.duration</code> specifies number of seconds to continue scanning. Should be larger or equal to 5 seconds. If none or 0 is specified, this node tries to keep scanning forever.
         </dd>
         -->
-        <dt>interval <span class="property-type">number</span></dt>
+        <dt>interval <span class="property-type">number</span> (Optional)</dt>
         <dd>
           <code>msg.interval</code> specifies interval of each device/sensor messages in seconds. Recommended not to set 0 or you will get too many beacon data.
         </dd>
@@ -124,7 +124,7 @@
 <!-- Linking LED -->
 
 <script type="text/x-red" data-help-name="linking-led">
-    <p>A node which connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and turns on LED.</p>
+    <p>Connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and turns on LED.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
@@ -150,14 +150,14 @@
 <!-- Linking Sensor -->
 
 <script type="text/x-red" data-help-name="linking-sensor">
-    <p>A node which connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and reads sensor data.</p>
+    <p>Connects to <a href="https://linkingiot.com/en/devices.html">Linking device</a> and reads sensor data.</p>
     <h3>Inputs</h3>
       <dl class="message-properties">
         <dt>payload <span class="property-type">boolean</span></dt>
         <dd>
           If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node disconnects the Linking device.</dd> 
         </dd>
-        <dt>services <span class="property-type">Object</span></dt>
+        <dt>services <span class="property-type">Object</span> (Optional)</dt>
         <dd>
           <code>msg.services</code> specifies services to read from Linking device which looks like:
 <pre>
@@ -167,11 +167,11 @@
     }
 </pre>
         </dd>
-        <dt>interval <span class="property-type">number</span></dt>
+        <dt>interval <span class="property-type">number</span> (Optional)</dt>
         <dd>
           <code>msg.interval</code> specifies interval to read data in seconds.
         </dd>
-        <dt>autostart <span class="property-type">boolean</span></dt>
+        <dt>autostart <span class="property-type">boolean</span> (Optional)</dt>
         <dd>
           If <code>msg.autostart</code> is true, this node starts automatically at 30 seconds after startup.
         </dd>
