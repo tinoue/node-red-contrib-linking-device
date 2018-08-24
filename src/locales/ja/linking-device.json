@@ -3,7 +3,7 @@
         "label": {
             "autostart": "起動時に自動で開始する",
             "duration": "実行時間",
-            "interval": "データ出力間隔",
+            "interval": "出力間隔",
             "devicesfound": "デバイス一覧",
             "device": "デバイス",
             "color" : "カラー",

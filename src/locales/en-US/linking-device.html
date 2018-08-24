@@ -41,8 +41,9 @@
       </dl>
     </h3>
     <h3>Output</h3>
-        <p>This node outputs a <code>msg</code> of beacon data which looks like:</p>
-        <dl>
+        <p>This node outputs a <code>msg</code> of beacon data which looks the followings.</p>
+        <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a> which has detailed information like RSSI and distance.</p>
+          <dl>
           <dt>Temperature</dt>
           <dd>
         <pre>{
@@ -117,7 +118,6 @@
          </dd>
         </dl>    
       </dl>
-      <p>msg.advertizement has a value of <a href="https://github.com/futomi/node-linking/blob/master/README.md#LinkingAdvertisement-object">LinkingAdvertisement Object</a> which has detailed information like RSSI and distance.
     </h3>
 </script>
 
@@ -157,6 +157,15 @@
         <dd>
           If <code>msg.payload</code> is true, this node starts to read data from Linking devices. If false, this node disconnects the Linking device.</dd> 
         </dd>
+        <dt>autostart <span class="property-type">boolean</span> (Optional)</dt>
+        <dd>
+          If <code>msg.autostart</code> is true, this node starts automatically at 30 seconds after startup.
+        </dd>
+        </dd>
+        <dt>interval <span class="property-type">number</span> (Optional)</dt>
+        <dd>
+          <code>msg.interval</code> specifies interval to read data in seconds.
+        </dd>
         <dt>services <span class="property-type">Object</span> (Optional)</dt>
         <dd>
           <code>msg.services</code> specifies services to read from Linking device which looks like:
@@ -166,14 +175,6 @@
         humidity: true
     }
 </pre>
-        </dd>
-        <dt>interval <span class="property-type">number</span> (Optional)</dt>
-        <dd>
-          <code>msg.interval</code> specifies interval to read data in seconds.
-        </dd>
-        <dt>autostart <span class="property-type">boolean</span> (Optional)</dt>
-        <dd>
-          If <code>msg.autostart</code> is true, this node starts automatically at 30 seconds after startup.
         </dd>
       </dl>
     </h3>
