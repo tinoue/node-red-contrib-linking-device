@@ -104,7 +104,6 @@ module.exports = function(RED) {
 
     let initialized = false;
 
-    let scannerExists = false;
     let scanning = false;
     let scannerEnabled = true;		// linking-scanner is enabled. i.e need to restart scan if stopped
     const scanSemaphore = new PromiseSemaphore(1);
@@ -141,14 +140,14 @@ module.exports = function(RED) {
     }
 
     function getBeaconData(data, service) {
-        if (service && data[service]) {
+        if (service && data[service] != null) {
             return data[service];
         } else {
             switch(service) {
             case 'general':
             case 'vendor':
-                // Sizuku Lux will send this type of beacon. Just skip
-                return;
+                // Sizuku Lux will send this type of beacon. Just skip.
+                return null;
             case 'battery':
                 // Most devices doesn't send this except Sizuku Lux
                 return {
@@ -411,7 +410,7 @@ module.exports = function(RED) {
                         const service = serviceNames[data.serviceId];
                         const beaconData = getBeaconData(data, service);
 
-                        if (beaconData) {
+                        if (beaconData != null) {
                             // Check rate limit first
                             const topic = getTopic(localName, service);
                             const msg = {
@@ -424,12 +423,13 @@ module.exports = function(RED) {
                                 topic: topic
                             };
 
-                    
-                            if (scannerLimiter[topic] == null) {
-                                scannerLimiter[topic]
-                                    = new RateLimiter(1, scannerInterval * 1000);
-                            } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
-                                return;
+                            if (0 < scannerInterval) {
+                                if (scannerLimiter[topic] == null) {
+                                    scannerLimiter[topic]
+                                        = new RateLimiter(1, scannerInterval * 1000);
+                                } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
+                                    return;
+                                }
                             }
 
                             node.send(msg);
@@ -523,7 +523,6 @@ module.exports = function(RED) {
 
         node.on('close', (remove, done) => {
             function closed() {
-                scannerExists = false;
                 node.debug('linking-scanner closed.');
 
                 done();
@@ -556,18 +555,13 @@ module.exports = function(RED) {
             }
         });
 
-        if (scannerExists) {
-            node.status({fill:'red', shape:'ring',text:'Multiple scanner exists'});
-        } else {
-            scannerExists = true;
-            node.status({fill:'grey', shape:'dot',text:'idle'});
+        node.status({fill:'grey', shape:'dot',text:'idle'});
 
-            if (config.autostart) {
-                try {
-                    startScanner();
-                } catch(error) {
-                    node(error);
-                }
+        if (config.autostart) {
+            try {
+                startScanner();
+            } catch(error) {
+                node(error);
             }
         }
     }

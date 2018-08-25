@@ -24,7 +24,7 @@ There are following three nodes:
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
 
-Note: Actual test has only be done with Tukeru TH and Sizuku THA.
+Note: Actual test has only be done with Tukeru TH, Sizuku THA and Sizuku Lux.
 
 ### Unsupported
 
