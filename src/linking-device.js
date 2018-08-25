@@ -34,12 +34,14 @@ const AUTOSTART_INTERVAL = 30 * 1000;
 
 // serviceId to string
 const serviceNames = {
+    '0': 'general',
     '1': 'temperature',
     '2': 'humidity',
     '3': 'pressure',
     '4': 'battery',
     '5': 'button',
     '9': 'illuminance',
+    '15': 'vendor'
 };
 
 // class PromiseSemaphore: Promise version of Semaphore with timeout
@@ -102,7 +104,6 @@ module.exports = function(RED) {
 
     let initialized = false;
 
-    let scannerExists = false;
     let scanning = false;
     let scannerEnabled = true;		// linking-scanner is enabled. i.e need to restart scan if stopped
     const scanSemaphore = new PromiseSemaphore(1);
@@ -139,11 +140,16 @@ module.exports = function(RED) {
     }
 
     function getBeaconData(data, service) {
-        if (service && data[service]) {
+        if (service && data[service] != null) {
             return data[service];
         } else {
             switch(service) {
+            case 'general':
+            case 'vendor':
+                // Sizuku Lux will send this type of beacon. Just skip.
+                return null;
             case 'battery':
+                // Most devices doesn't send this except Sizuku Lux
                 return {
                     chargeRequired: data.chargeRequired,
                     chargeLevel: data.chargeLevel
@@ -162,7 +168,7 @@ module.exports = function(RED) {
                     z: data.z
                 };
             default:
-                logger.debug('Unsupported beacon data: ' + JSON.strigify(data));
+                logger.debug('Unsupported beacon data: ' + JSON.stringify(data));
                 break;
             }
         }
@@ -399,32 +405,37 @@ module.exports = function(RED) {
             if (advertisement.beaconDataList && (advertisement.beaconDataList.length)) {
                 // Convert beacon data to linking-scanner format
                 for (let data of advertisement.beaconDataList) {
-                    if (data.serviceId && serviceNames[data.serviceId]) {
+                    if (typeof(data.serviceId) === 'number' && serviceNames[data.serviceId]) {
                         const localName = advertisement.localName;
                         const service = serviceNames[data.serviceId];
+                        const beaconData = getBeaconData(data, service);
 
-                        // Check rate limit first
-                        const topic = getTopic(localName, service);
-                        if (scannerLimiter[topic] == null) {
-                            scannerLimiter[topic]
-                                = new RateLimiter(1, scannerInterval * 1000);
-                        } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
-                            return;
+                        if (beaconData != null) {
+                            // Check rate limit first
+                            const topic = getTopic(localName, service);
+                            const msg = {
+                                advertisement: advertisement,
+                                payload : {
+                                    device: localName,
+                                    service: service,
+                                    data: beaconData
+                                },
+                                topic: topic
+                            };
+
+                            if (0 < scannerInterval) {
+                                if (scannerLimiter[topic] == null) {
+                                    scannerLimiter[topic]
+                                        = new RateLimiter(1, scannerInterval * 1000);
+                                } else if (! scannerLimiter[topic].tryRemoveTokens(1)) {
+                                    return;
+                                }
+                            }
+
+                            node.send(msg);
                         }
-
-                        const msg = {
-                            advertisement: advertisement,
-                            payload : {
-                                device: localName,
-                                service: service,
-                                data: getBeaconData(data, service)
-                            },
-                            topic: topic
-                        };
-
-                        node.send(msg);
                     } else {
-                        node.debug('Unsupported beacon data: ' + JSON.strigify(data));
+                        node.debug('Unsupported beacon data: ' + JSON.stringify(data));
                     }
                 }
             } else {
@@ -512,7 +523,6 @@ module.exports = function(RED) {
 
         node.on('close', (remove, done) => {
             function closed() {
-                scannerExists = false;
                 node.debug('linking-scanner closed.');
 
                 done();
@@ -545,18 +555,13 @@ module.exports = function(RED) {
             }
         });
 
-        if (scannerExists) {
-            node.status({fill:'red', shape:'ring',text:'Multiple scanner exists'});
-        } else {
-            scannerExists = true;
-            node.status({fill:'grey', shape:'dot',text:'idle'});
+        node.status({fill:'grey', shape:'dot',text:'idle'});
 
-            if (config.autostart) {
-                try {
-                    startScanner();
-                } catch(error) {
-                    node(error);
-                }
+        if (config.autostart) {
+            try {
+                startScanner();
+            } catch(error) {
+                node(error);
             }
         }
     }

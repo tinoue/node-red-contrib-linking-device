@@ -24,7 +24,7 @@ There are following three nodes:
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
 
-Note: Actual test has only be done with Tukeru TH and Sizuku THA.
+Note: Actual test has only be done with Tukeru TH, Sizuku THA and Sizuku Lux.
 
 ### Unsupported
 
@@ -166,7 +166,9 @@ Range of Linking Device is not so long. If connection is unstable I recommend to
 
 If you use linking-sensor, use also linking-scanner. If linking-sensor fails to connect to the device, linking-scanner ges sensor data.
 
-### linking-led with linking-sensor
+
+
+### Use linking-led with linking-sensor
 
 It takes 10-20 seconds to turn on LED when device is disconnected. Setting "Keep connection" in edit dialog will keep the device connectiong. But in the device is connected, linking-scanner can't get sensor from beacon signal. You should use linking-sensor in this case.
 
@@ -176,18 +178,17 @@ It takes 10-20 seconds to turn on LED when device is disconnected. Setting "Keep
 
 # License
 
-```
-   Copyright (c) 2018 Takesh Inoue <inoue.takeshi@gmail.com>
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
+    Copyright (c) 2018 Takesh Inoue <inoue.takeshi@gmail.com>
+    
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+    
        http://www.apache.org/licenses/LICENSE-2.0
+    
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-```
