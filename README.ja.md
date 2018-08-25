@@ -1,5 +1,7 @@
 # node-red-contrib-linking-device
 
+\[[English](./README.md)\]
+
 これは、BLE(Bluetooth Low Energy)デバイスの一種、<a href="https://linkingiot.com/devices.html">Linkingデバイス</a>にアクセスするためのNode-REDカスタムノードです。 
 
 Linkingデバイスについて、詳しくは <a href="https://linkingiot.com/index.html">Project Linking</a> のページを参照してください.
