@@ -27,9 +27,10 @@ const linking = new Linking();
 
 const TAG = 'linking-device: ';
 
-const REQUEST_TIMEOUT = 60 * 1000;	// 1sec
-const SCANNER_RESTART_INTERVAL = 60 * 1000;	// 1sec
-const AUTOSTART_INTERVAL = 30 * 1000;
+const REQUEST_TIMEOUT = 60 * 1000;	// (msec) 1sec
+const SCANNER_RESTART_INTERVAL = 60 * 1000;	// (msec) 1min
+const ACTIVE_SCAN_INTERVAL = 60; // (SEC) 1min
+const AUTOSTART_INTERVAL = 30 * 1000; // (msec)
 
 
 // serviceId to string
@@ -106,12 +107,15 @@ module.exports = function(RED) {
 
     let scanning = false;
     let scannerEnabled = true;		// linking-scanner is enabled. i.e need to restart scan if stopped
+    let passiveScanMode = false;
+    
     const scanSemaphore = new PromiseSemaphore(1);
     const connectSemaphore = new PromiseSemaphore(1);
 
     let linkingDevices = {};    // key: localName, value: device object
     let deviceSemaphores = {};  // key; localName, value; semaphore to request to device
     let lastBeaconTimes = {};   // key: localName, value: time(os.uptime) of last beacon.
+    let lastUndiscoveredBeaconTime;
 
     ////////////////////////////////////////////////////////////////
     // Common functions
@@ -201,7 +205,19 @@ module.exports = function(RED) {
         const ad = peripheral.advertisement;
         if (!ad.localName) {
             // Advertisement from device which hasn't responded to scan request
-            logger.log('Advertisement from undiscovered device.');
+            logger.log('Advertisement from undiscovered device (' + peripheral.address + ')');
+
+            // Check semaphore not to request stopScan multiple times
+            if (scanning && passiveScanMode) {
+                logger.debug('Switch to active scan mode.');
+
+                startNobleScan(false).then(() => {
+                    // do nothing
+                }).catch((error) => {
+                    logger.error('Failed to start active scanning: ' + error);
+                });
+            }
+
             return;
         }
 
@@ -231,7 +247,7 @@ module.exports = function(RED) {
                     return;
                 }
 
-                logger.log(TAG + 'found device: ' + localName);
+                logger.log(TAG + 'found device: ' + localName + '(' + advertisement.address + ')');
                 linkingDevices[localName] = device;
             }
 
@@ -245,7 +261,7 @@ module.exports = function(RED) {
     }
 
     function onNobleScanStart() {
-        scanning = true;
+        // scanning = true; // NOTE: The flag is set by startNobleScan to avoid race condition
 
         event.emit('scannerStatus', {
             fill:'green',
@@ -256,14 +272,14 @@ module.exports = function(RED) {
     }
     
     function onNobleScanStop() {
-        scanning = false;
+        // scanning = false; // NOTE: This flag is set by stopNobleScan to avoid race condition
 
         if (! connectSemaphore.available()) {
             logger.log(TAG + 'scanner suspended for connect operation.');
             event.emit('scannerStatus', {fill:'grey', shape:'dot',text:'suspending'});
             // event.emit('scanStop', true);
         } else if (scannerEnabled) {
-            logger.log(TAG + 'scanner interrupted unexpectedly.');
+            logger.log(TAG + 'scanner interrupted.');
             event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'interrupted'});
             event.emit('scanStop', false);
         } else {
@@ -277,15 +293,10 @@ module.exports = function(RED) {
     // and heavyly relied on internal implementation of node-linking.
     // Returns: Promise
     // event : discover, scanStart
-    function startNobleScan() {
-        return new Promise((resolve, reject) => {
-            if (scanning) {
-                logger.debug(TAG + 'scanner already started.');
-                resolve();
-                return;
-            }
+    function startNobleScan(passive) {
+        passive = !!passive;
 
-            // Start scanning beacon
+        return new Promise((resolve, reject) => {
             logger.log(TAG + 'Start scanning.');
 
             const onError = (error) => {
@@ -294,29 +305,58 @@ module.exports = function(RED) {
                 reject();
             };
 
-            initLinking().then(() => {
-                return scanSemaphore.take();
+            const checkScanMode = () => {
+                // Promise<boolean>
+                return new Promise((resolve, reject) => {
+                    if ((scanning && passive === passiveScanMode ) || ! scannerEnabled) {
+                        // already scanning. nothing to do.
+                        resolve(true);
+                    } else if (scanning && passive !== passiveScanMode) {
+                        // already scanning but need to change scan mode.
+
+                        // call stopScanning() directory not to use scanSemaphore
+                        linking.noble.stopScanning((error) => {
+                            if (error) {
+                                reject(error);
+                            } else {
+                                resolve(false);
+                            }
+                        });
+                    } else {
+                        resolve(false);
+                    }
+                });
+            };
+
+            scanSemaphore.take().then(() => {
+                return initLinking();
             }).then(() => {
-                if (scanning || ! scannerEnabled) {
-                    scanSemaphore.leave();
+                return checkScanMode();
+            }).then((returnNow) => {
+                lastUndiscoveredBeaconTime = os.uptime(); // Reset not to change scan mode for a while
+
+                if (returnNow) {
                     resolve();
+                    scanSemaphore.leave();
                     return;
                 }
 
                 event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'starting scan'});
 
-                linking.noble.startScanning(linking.PRIMARY_SERVICE_UUID_LIST, true, (error) => {
-                    scanSemaphore.leave();
-
+                passiveScanMode = passive;
+                linking.noble.startScanning(linking.PRIMARY_SERVICE_UUID_LIST, true, passive, (error) => {
                     if (error) {
                         onError(error);
                     } else {
-                        // scanning = true // NOTE: The flag is set by event handler
+                        scanning = true;
                         resolve();
                     }
+
+                    scanSemaphore.leave();
                 });
             }).catch((error) => {
                 onError(error);
+                scanSemaphore.leave();
             });
         });
     }
@@ -328,38 +368,32 @@ module.exports = function(RED) {
         logger.log(TAG + 'Stop scanning.');
 
         return new Promise((resolve, reject) => {
-            if (! scanning) {
-                logger.debug(TAG + 'scanner already stopped.');
-                resolve();
-                return;
-            }
-
             const onError = (error) => {
                 logger.warn(TAG + error);
                 event.emit('scannerStatus', {fill:'red', shape:'ring',text:'error on stop'});
                 reject();
             };
             
-            initLinking().then(() => {
-                return scanSemaphore.take();
+            scanSemaphore.take().then(() => {
+                return initLinking();
             }).then(() => {
                 if (! scanning) {
-                    scanSemaphore.leave();
                     resolve();
+                    scanSemaphore.leave();
                     return;
                 }
 
                 event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'stopping scan'});
 
                 linking.noble.stopScanning((error) => {
-                    scanSemaphore.leave();
-
                     if (error) {
                         onError(error);
                     } else {
-                        // scanning = false // NOTE: The flag is set by event handler
+                        scanning = false;
                         resolve();
                     }
+
+                    scanSemaphore.leave();
                 });
             }).catch((error) => {
                 onError(error);
@@ -445,7 +479,7 @@ module.exports = function(RED) {
 
         async function startScanner() {
             try {
-                await startNobleScan();
+                await startNobleScan(false);
 
                 event.on('discover', onDiscover);
 
@@ -468,21 +502,34 @@ module.exports = function(RED) {
 
             // Start restart checker
             scanRetryTimerId = setInterval(() => {
-                if (scannerEnabled && ! scanning &&
-                    scanSemaphore.available() && connectSemaphore.available()) {
+                if (scanSemaphore.available() && connectSemaphore.available()) {
+                    if (scanning) {
+                        if (! passiveScanMode &&
+                            os.uptime() - lastUndiscoveredBeaconTime > ACTIVE_SCAN_INTERVAL) {
 
-                    startNobleScan().then(() => {
-                        node.log('scan restarted.');
-                    }).catch((error) => {
-                        node.warn('failed to restart scanning: ' + error);
-                    });
+                            logger.debug('Switch to passive scan mode.');
+                            startNobleScan(true).then(() => {
+                                // do nothing
+                            }).catch((error) => {
+                                logger.error('Failed to start passive scanning: ' + error);
+                            });
+                        }
+                    } else if (scannerEnabled) {
+
+                        // Always restart scan with active mode for safety.
+                        startNobleScan(false).then(() => {
+                            node.log('scan restarted.');
+                        }).catch((error) => {
+                            node.warn('failed to restart scanning: ' + error);
+                        });
+                    }
                 }
             }, SCANNER_RESTART_INTERVAL);
         }
 
         event.on('scannerStatus', onScannerStatus);
 
-        node.on('input', (msg) => {
+        node.on('input', async (msg) => {
             try {
                 if (msg.payload) {
                     if (! scannerEnabled || ! scanning) {
@@ -499,7 +546,7 @@ module.exports = function(RED) {
                                 = new RateLimiter(1, scannerInterval * 1000);
                         }
 
-                        startScanner();
+                        await startScanner();
                     }
                 } else {
                     if (scannerEnabled || scanning) {
@@ -517,6 +564,7 @@ module.exports = function(RED) {
                     }
                 }
             } catch(error) {
+                node.error('Failed to start/stop scanning: ' + error);
                 node.error(error);
             }
         });
@@ -550,7 +598,7 @@ module.exports = function(RED) {
 
                 closed(); // don't wait until stop or node-red will timed out.
             } catch(error) {
-                node.error(error);
+                node.error('Failed to close: ' + error);
                 closed();
             }
         });
@@ -558,11 +606,11 @@ module.exports = function(RED) {
         node.status({fill:'grey', shape:'dot',text:'idle'});
 
         if (config.autostart) {
-            try {
-                startScanner();
-            } catch(error) {
-                node(error);
-            }
+            startScanner().then(() => {
+                // do nothing
+            }).catch((error) => {
+                node.error('Failed to start scanner: ' + error);
+            });
         }
     }
 
@@ -596,7 +644,7 @@ module.exports = function(RED) {
 
                 scanTimerId = undefined;
 
-                reject(Error(errormsg));
+                reject(new Error(errormsg));
             }
 
             // check cache first
@@ -608,7 +656,7 @@ module.exports = function(RED) {
             event.on('discover', onDiscover);
             logger.log(TAG + 'scanning to discover: ' + localName);
 
-            startNobleScan().then(() => {
+            startNobleScan(false).then(() => {
                 // scan device for <timeout> secnds
                 scanTimerId = setTimeout(onScanTimeout, timeout * 1000);
             }).catch((error) => {
@@ -617,7 +665,7 @@ module.exports = function(RED) {
                 }
 
                 event.removeListener('discover', onDiscover);
-                logger.warn(TAG + 'failed to scann: ' + error);
+                logger.warn(TAG + 'failed to scan: ' + error);
 
                 reject(error);
             });
@@ -651,10 +699,8 @@ module.exports = function(RED) {
                 device = await discoverDevice(localName, timeout);
             }
 
-            if (scanning) {
-                logger.debug(TAG + 'Stopping scan to connect.');
-                await stopNobleScan();
-            }
+            logger.debug(TAG + 'Stopping scan to connect.');
+            await stopNobleScan();
 
             // Set connection timeout handler
 
@@ -743,7 +789,7 @@ module.exports = function(RED) {
             // check again
             if (device.connected) {
                 await device.disconnect();
-                logger.log(TAG + 'disconnected device: ' + localName);
+                // logger.log(TAG + 'disconnected device: ' + localName);	// event handler will log this
             } else {
                 logger.debug(TAG + 'device alread disconnected: ' + localName);
             }

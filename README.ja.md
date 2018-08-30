@@ -24,7 +24,7 @@ Linkingデバイス用ノードは以下の3つです
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
 
-※ 実際のテストはTukeru TH と Sizuku THA , Shizuku Luxでのみ行っています。
+※ 実際のテストはTukeru TH, Sizuku THA, Shizuku Lux, Pochiru(eco)でのみ行っています。
 
 ### 対応していない
 
@@ -91,7 +91,7 @@ msg: {
   payload: {
     device: "Sizuku_tha0141790",
     service: "temperature",
-    value: 25.625
+    data: 25.625
   },
   topic: "Sizuku_tha0141790_temperature"
 }
@@ -126,7 +126,7 @@ msg: {
   payload: {
     device: "Sizuku_tha0141790",
     service: "temperature",
-    value: 25.625
+    data: 25.625
   },
   topic: "Sizuku_tha0141790_temperature"
 }

@@ -24,7 +24,7 @@ There are following three nodes:
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
 
-Note: Actual test has only be done with Tukeru TH, Sizuku THA and Sizuku Lux.
+Note: Actual test has only be done with Tukeru TH, Sizuku THA, Sizuku Lux and Pochiru(eco).
 
 ### Unsupported
 
@@ -92,7 +92,7 @@ msg: {
   payload: {
     device: "Sizuku_tha0141790",
     service: "temperature",
-    value: 25.625
+    data: 25.625
   },
   topic: "Sizuku_tha0141790_temperature"
 }
@@ -124,7 +124,7 @@ msg: {
   payload: {
     device: "Sizuku_tha0141790",
     service: "temperature",
-    value: 25.625
+    data: 25.625
   },
   topic: "Sizuku_tha0141790_temperature"
 }
