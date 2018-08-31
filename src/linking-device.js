@@ -208,14 +208,16 @@ module.exports = function(RED) {
             logger.log('Advertisement from undiscovered device (' + peripheral.address + ')');
 
             // Check semaphore not to request stopScan multiple times
-            if (scanning && passiveScanMode) {
-                logger.debug('Switch to active scan mode.');
+            if (scanSemaphore.available() && connectSemaphore.available()) {
+                if (scanning && passiveScanMode) {
+                    logger.debug('Switch to active scan mode.');
 
-                startNobleScan(false).then(() => {
-                    // do nothing
-                }).catch((error) => {
-                    logger.error('Failed to start active scanning: ' + error);
-                });
+                    startNobleScan(false).then(() => {
+                        // do nothing
+                    }).catch((error) => {
+                        logger.error('Failed to start active scanning: ' + error);
+                    });
+                }
             }
 
             return;
@@ -532,36 +534,32 @@ module.exports = function(RED) {
         node.on('input', async (msg) => {
             try {
                 if (msg.payload) {
-                    if (! scannerEnabled || ! scanning) {
-                        scannerEnabled = true;
+                    scannerEnabled = true;
 
-                        scanDuration = (msg && typeof(msg.duration) === 'number')
-                            ? msg.duration : config.duration || 0;
+                    scanDuration = (msg && typeof(msg.duration) === 'number')
+                        ? msg.duration : config.duration || 0;
         
-                        scannerInterval = (msg && typeof(msg.interval) === 'number')
-                            ? msg.interval : config.interval || 0;
+                    scannerInterval = (msg && typeof(msg.interval) === 'number')
+                        ? msg.interval : config.interval || 0;
 
-                        for (let topic in scannerLimiter) {
-                            scannerLimiter[topic]
-                                = new RateLimiter(1, scannerInterval * 1000);
-                        }
-
-                        await startScanner();
+                    for (let topic in scannerLimiter) {
+                        scannerLimiter[topic]
+                            = new RateLimiter(1, scannerInterval * 1000);
                     }
+
+                    await startScanner();
                 } else {
-                    if (scannerEnabled || scanning) {
-                        scannerEnabled = false;
+                    scannerEnabled = false;
 
-                        stopScanDurationTimer();
-                        stopScanRetryTimer();
-                        event.removeListener('discover', onDiscover);
+                    stopScanDurationTimer();
+                    stopScanRetryTimer();
+                    event.removeListener('discover', onDiscover);
                     
-                        stopNobleScan().then(() => {
-                            node.log('scan stopped.');
-                        }).catch((error) => {
-                            node.warn('failed to stop scanning: ' + error);
-                        });
-                    }
+                    stopNobleScan().then(() => {
+                        node.log('scan stopped.');
+                    }).catch((error) => {
+                        node.warn('failed to stop scanning: ' + error);
+                    });
                 }
             } catch(error) {
                 node.error('Failed to start/stop scanning: ' + error);
@@ -587,16 +585,15 @@ module.exports = function(RED) {
                 if (remove) {
                     scannerEnabled = false;
 
-                    setImmediate(() => {
-                        stopNobleScan().then(() => {
-                            // do nothing
-                        }).catch((error) => {
-                            logger.warn('failed to stop scanning: ' + error);
-                        });
+                    stopNobleScan().then(() => {
+                        closed();
+                    }).catch((error) => {
+                        logger.warn('failed to stop scanning: ' + error);
+                        closed();
                     });
+                } else {
+                    closed();
                 }
-
-                closed(); // don't wait until stop or node-red will timed out.
             } catch(error) {
                 node.error('Failed to close: ' + error);
                 closed();
@@ -606,11 +603,7 @@ module.exports = function(RED) {
         node.status({fill:'grey', shape:'dot',text:'idle'});
 
         if (config.autostart) {
-            startScanner().then(() => {
-                // do nothing
-            }).catch((error) => {
-                node.error('Failed to start scanner: ' + error);
-            });
+            node.emit('input', {payload: true});
         }
     }
 
