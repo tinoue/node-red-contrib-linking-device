@@ -42,7 +42,8 @@ const serviceNames = {
     '4': 'battery',
     '5': 'button',
     '9': 'illuminance',
-    '15': 'vendor'
+    '15': 'vendor',
+    '16': 'rawdata'
 };
 
 // class PromiseSemaphore: Promise version of Semaphore with timeout
@@ -202,8 +203,8 @@ module.exports = function(RED) {
     }
 
     function onNobleDiscover(peripheral) {
-        const ad = peripheral.advertisement;
-        if (!ad.localName) {
+        const localName = peripheral.advertisement.localName;
+        if (!localName) {
             // Advertisement from device which hasn't responded to scan request
             logger.log('Advertisement from undiscovered device (' + peripheral.address + ')');
 
@@ -225,9 +226,10 @@ module.exports = function(RED) {
 
         // logger.debug(TAG + 'Got advertisement: ' + ad.localName);
 
-        const advertisement = LinkingAdvertising.parse(peripheral);
+        const encrypted = localName.startsWith('Oshieru') || localName.startsWith('Kizuku');
+        const advertisement = LinkingAdvertising.parse(peripheral, encrypted);
+
         if (advertisement) {
-            const localName = advertisement.localName;
             let device = linkingDevices[localName];
 
             lastBeaconTimes[localName] = os.uptime();
@@ -280,7 +282,7 @@ module.exports = function(RED) {
             logger.log(TAG + 'scanner suspended for connect operation.');
             event.emit('scannerStatus', {fill:'grey', shape:'dot',text:'suspending'});
             // event.emit('scanStop', true);
-        } else if (scannerEnabled) {
+        } else if (scannerEnabled && ! scanSemaphore.available()) {
             logger.log(TAG + 'scanner interrupted.');
             event.emit('scannerStatus', {fill:'yellow', shape:'dot',text:'interrupted'});
             event.emit('scanStop', false);
