@@ -226,8 +226,7 @@ module.exports = function(RED) {
 
         // logger.debug(TAG + 'Got advertisement: ' + ad.localName);
 
-        const encrypted = localName.startsWith('Oshieru') || localName.startsWith('Kizuku');
-        const advertisement = LinkingAdvertising.parse(peripheral, encrypted);
+        const advertisement = LinkingAdvertising.parse(peripheral);
 
         if (advertisement) {
             let device = linkingDevices[localName];
