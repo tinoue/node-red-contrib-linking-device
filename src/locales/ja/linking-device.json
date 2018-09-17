@@ -19,6 +19,10 @@
             "gyroscope" : "ジャイロスコープ",
             "accelerometer" : "加速度",
             "orientation" : "方位(磁気)",
+            "openclose" : "開閉",
+            "human" : "人感",
+            "move" : "振動",
+            "illuminance" : "照度",
             "ledon" : "このデバイスのLEDを点灯させる"
         },
         "placeholder": {

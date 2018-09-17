@@ -15,6 +15,7 @@
 */
 const DEBUG = true;
 const os = require('os');
+// const dump = require('buffer-hexdump');
 
 const EventEmitter = require('events').EventEmitter;
 const Semaphore = require('semaphore');
@@ -33,7 +34,7 @@ const ACTIVE_SCAN_INTERVAL = 60; // (SEC) 1min
 const AUTOSTART_INTERVAL = 30 * 1000; // (msec)
 
 
-// serviceId to string
+// Advertising serviceId to string
 const serviceNames = {
     '0': 'general',
     '1': 'temperature',
@@ -109,6 +110,7 @@ module.exports = function(RED) {
     let scanning = false;
     let scannerEnabled = true;		// linking-scanner is enabled. i.e need to restart scan if stopped
     let passiveScanMode = false;
+    // let rawdata;
     
     const scanSemaphore = new PromiseSemaphore(1);
     const connectSemaphore = new PromiseSemaphore(1);
@@ -228,6 +230,14 @@ module.exports = function(RED) {
 
         const advertisement = LinkingAdvertising.parse(peripheral);
 
+        /*
+        const beaconData = advertisement.beaconDataList[0];
+        if (beaconData.serviceId == 16 &&
+            (!rawdata || Buffer.compare(rawdata, beaconData.rawdata))) {
+            rawdata = beaconData.rawdata;
+            console.debug(os.uptime + ':' + dump(rawdata));
+        }
+        */
         if (advertisement) {
             let device = linkingDevices[localName];
 
@@ -672,6 +682,8 @@ module.exports = function(RED) {
     //    timeout: Optional. Default is 10 seconds.
     // Returns async Device
     async function connectDevice(localName, timeout) {
+        timeout = timeout || 10;
+
         let device = linkingDevices[localName];
         if (device && device.connected) {
             return device;
@@ -837,13 +849,13 @@ module.exports = function(RED) {
                 node.error('no device name specified.');
                 return;
             }
-
+            /* // device.services is not null even if the device hasn't been connected yet.
             const device = linkingDevices[localName];
             if (device && device.services && (! device.services.led)) {
                 node.warn('No led service: ' + localName);
                 return;
             }
-
+*/
             node.debug('Turning LED on : ' + localName);
             node.status({fill:'yellow', shape:'dot', text:'connecting'});
 
@@ -1012,7 +1024,6 @@ module.exports = function(RED) {
 
         async function startSensor(service) {
             const postfixMsg = ': '+ localName + '/' + service;
-            node.debug('startSensor' + postfixMsg);
 
             if (! sensorEnabled) {
                 node.warn('startSensor() called while !sensorEnabled.');
@@ -1038,18 +1049,24 @@ module.exports = function(RED) {
                     return;
                 }
 
-                // The sensor doen't require start() but it is expected condition.
-                if (typeof(device.services[service].start) !== 'function') {
-                    setRestartTimer(service);	// Set restart in case of disconnection
-                    return;
-                }
-
                 if (! sensorEnabled) {
                     getDeviceSemaphore(localName).leave();
 
                     // Assumed that the linking-sensor is disabled while connecting to device. So disconnect.
                     // This will take semaphore
                     disconnectToStopAllSensors();
+                    return;
+                }
+
+                if (device.services[service] && device.services[service].started) {
+                    // Already started
+                    setRestartTimer(service);	// Set restart in case of disconnection
+                    return;
+                }
+
+                // The sensor doen't require start() but it is expected condition.
+                if (typeof(device.services[service].start) !== 'function') {
+                    setRestartTimer(service);	// Set restart in case of disconnection
                     return;
                 }
 
@@ -1061,6 +1078,7 @@ module.exports = function(RED) {
                     DEBUG && node.debug('sensor started' + postfixMsg);
 
                     if (result.resultCode === 0) {
+                        device.services[service].started = true;
                         node.status({fill:'green', shape:'dot', text:notifyCount + ' notifications'});
                     } else {
                         node.log('failed to start ' + service + ': ' + result.resultText);
@@ -1086,21 +1104,20 @@ module.exports = function(RED) {
         async function stopSensor(service) {
             const postfixMsg = ': '+ localName + '/' + service;
             const device = linkingDevices[localName];
-            node.debug('stopSensor : ' + localName + '/' + service);
 
             if (device && device.services && device.services[service]) {
-                if ((! sensorEnabled || 60 <= sensorInterval) &&
+                if ((! sensorEnabled || !sensorServices[service] || 60 <= sensorInterval) &&
                     typeof(device.services[service].stop) === 'function') {
 
+                    node.debug('stopSensor : ' + localName + '/' + service);
+
                     await getDeviceSemaphore(localName).take();
-                    if (! sensorEnabled) {
-                        return;
-                    }
 
                     try {
                         DEBUG && node.debug('stopping sensor' + postfixMsg);
 
                         await device.services[service].stop();
+                        device.services[service].started = false;
 
                         DEBUG && node.debug('sensor stopped' + postfixMsg);
                     } catch(error) {
@@ -1135,6 +1152,12 @@ module.exports = function(RED) {
             try {
                 const device = await connectDevice(localName);
 
+                // Edge case handling
+                if (! sensorEnabled) {
+                    await disconnectdevice(localName);
+                    return;
+                }
+
                 // If no service configuration then watch all available sensors.
                 if (! sensorServices) {
                     sensorServices = device.services;
@@ -1142,7 +1165,9 @@ module.exports = function(RED) {
 
                 for(let service in sensorServices) {
                     const serviceObj = device.services[service];
-                    if (sensorServices[service] != null && ('onnotify' in serviceObj)) {
+                    if (sensorServices[service] != null &&
+                        serviceObj != null && ('onnotify' in serviceObj)) {
+
                         if (typeof(serviceObj.start) === 'function') {
                             messageLimiter[service]
                                 = new RateLimiter(1, sensorInterval * 1000);
@@ -1416,7 +1441,9 @@ module.exports = function(RED) {
                 return;
             }
 
-            const services = linkingDevices[localName] && linkingDevices[localName].services;
+            const device = linkingDevices[localName];
+            // NOTE: referring private property of LinkingDevice object
+            const services =  device && device._LinkingService._device_info && device.services;
 
             if (services) {
                 res.status(200).send(services);
@@ -1449,14 +1476,14 @@ module.exports = function(RED) {
                 res.status(404).send('No device name.');
                 return;
             }
-
+            /* // device.services is not null even if the device hasn't been connected yet.
             const device = linkingDevices[localName];
             if (device && device.services && (! device.services.led)) {
                 logger.warn('linking-device/turnOnLed/ failed. no led service: ' + localName);
                 res.status(404).send('The device has no led service.');
                 return;
             }
-            
+*/            
             connectDevice(localName).then(async (device) => {
                 if (device.services && device.services.led) {
 
@@ -1476,7 +1503,7 @@ module.exports = function(RED) {
                     });
                 } else {
                     logger.warn('linking-device/turnOnLed/ failed: no led service: ' + localName);
-                    res.status(404).send('The device as no led service.');
+                    res.status(404).send('The device has no led service.');
                     return;
                 }
             }).catch((error) => {
