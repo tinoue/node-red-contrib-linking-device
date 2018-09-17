@@ -19,6 +19,10 @@
             "gyroscope" : "Gyroscope",
             "accelerometer" : "Accelerometer",
             "orientation" : "Orientation",
+            "openclose" : "Opening and closing",
+            "human" : "Human detection",
+            "move" : "Movement detection",
+            "illuminance" : "Illuminance",
             "ledon" : "Turn on LED of this device"
         },
         "placeholder": {
