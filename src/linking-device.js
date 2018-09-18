@@ -1033,6 +1033,7 @@ module.exports = function(RED) {
             await getDeviceSemaphore(localName).take();
 
             if (! sensorEnabled) {
+                getDeviceSemaphore(localName).leave();
                 return;
             }
             
@@ -1046,6 +1047,7 @@ module.exports = function(RED) {
 
                     // Just ignore the error not to restart
                     // throw new Error(errmsg);
+                    getDeviceSemaphore(localName).leave();
                     return;
                 }
 
@@ -1061,12 +1063,14 @@ module.exports = function(RED) {
                 if (device.services[service] && device.services[service].started) {
                     // Already started
                     setRestartTimer(service);	// Set restart in case of disconnection
+                    getDeviceSemaphore(localName).leave();
                     return;
                 }
 
                 // The sensor doen't require start() but it is expected condition.
                 if (typeof(device.services[service].start) !== 'function') {
                     setRestartTimer(service);	// Set restart in case of disconnection
+                    getDeviceSemaphore(localName).leave();
                     return;
                 }
 
