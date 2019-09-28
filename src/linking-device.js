@@ -1158,7 +1158,7 @@ module.exports = function(RED) {
 
                 // Edge case handling
                 if (! sensorEnabled) {
-                    await disconnectdevice(localName);
+                    await disconnectDevice(localName);
                     return;
                 }
 
