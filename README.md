@@ -1,6 +1,6 @@
 # node-red-contrib-linking-device
 
-\[[日本語](README.ja.md)\]
+\[[日本語](README_ja.md)\]
 
 A Node-RED node for providing access to BLE(Bluetooth Low Energy) devices called <a href="https://linkingiot.com/en/devices.html">Linking devices</a>.
 
@@ -23,6 +23,7 @@ There are following three nodes:
 - Pochiru / Pochiru(eco) (button, LED)
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
+- Oruto (motion sensor)
 
 Note: Actual test has only be done with Tukeru TH, Sizuku THA, Sizuku Lux and Pochiru(eco).
 

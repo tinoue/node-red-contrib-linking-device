@@ -23,6 +23,7 @@ Linkingデバイス用ノードは以下の3つです
 - Pochiru / Pochiru(eco) (button, LED)
 - Sizuku 6x (gyroscope, accelerometer, orientation, LED)
 - Sizuku Lux (illuminance, LED)
+- Oruto (motion sensor)
 
 ※ 実際のテストはTukeru TH, Sizuku THA, Shizuku Lux, Pochiru(eco)でのみ行っています。
 
